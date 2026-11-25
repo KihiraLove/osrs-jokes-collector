@@ -1,0 +1,9 @@
+services:
+  bootstrap:
+    image: ${COLLECTOR_IMAGE:-osrs-jokes-collector:local}
+  app:
+    image: ${COLLECTOR_IMAGE:-osrs-jokes-collector:local}
+    build:
+      context: .
+    ports:
+      - "127.0.0.1:${COLLECTOR_PORT:-3000}:3000"

@@ -1,7 +1,8 @@
 import { createPool } from './database.ts';
 import { migrate } from './migrations.ts';
+import { databaseConfig } from '../runtime/database-config.ts';
 
-const pool = createPool(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL } : {});
+const pool = createPool(await databaseConfig());
 try {
   await migrate(pool);
   console.log('Database migrations applied.');

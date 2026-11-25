@@ -17,7 +17,8 @@
     "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
     "test": "node --test --test-isolation=none",
     "test:unit": "node --test --test-isolation=none test/normalization.test.ts test/app.test.ts",
-    "test:db": "node --test --test-isolation=none test/database.test.ts"
+    "test:db": "node --test --test-isolation=none test/database.test.ts",
+    "test:compose": "node scripts/test-compose.mjs"
   },
   "dependencies": {
     "fastify": "5.12.8",

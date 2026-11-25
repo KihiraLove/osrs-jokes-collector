@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { ConflictError, ValidationError } from '../domain.ts';
-import type { Deck, DeckContents, Joke, JokeFilter, JokeInput, Theme } from '../domain.ts';
+import type { Deck, DeckContents, Joke, JokeFilter, JokeInput, Theme, ThemeUsage } from '../domain.ts';
 import { normalizeJoke, normalizeName, normalizeThemes } from '../normalization.ts';
 import { transaction } from './transaction.ts';
 
 const jokeColumns = `j.id, j.kind, j.text, j.punchline, j.deck_id AS "deckId",
+  (SELECT name FROM decks WHERE id = j.deck_id) AS "deckName",
   to_char(j.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt",
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name)
     ORDER BY t.normalized_name, t.id)
@@ -73,6 +74,22 @@ export class JokeRepository {
     return (await this.pool.query<Theme>('SELECT id, name FROM themes ORDER BY normalized_name, id')).rows;
   }
 
+  async listThemeUsage(): Promise<ThemeUsage[]> {
+    return (await this.pool.query<ThemeUsage>(`SELECT t.id, t.name, count(jt.joke_id)::int AS "jokeCount"
+      FROM themes t LEFT JOIN joke_themes jt ON jt.theme_id = t.id
+      GROUP BY t.id ORDER BY t.normalized_name, t.id`)).rows;
+  }
+
+  async getTheme(id: string): Promise<ThemeUsage | null> {
+    return (await this.pool.query<ThemeUsage>(`SELECT t.id, t.name, count(jt.joke_id)::int AS "jokeCount"
+      FROM themes t LEFT JOIN joke_themes jt ON jt.theme_id = t.id
+      WHERE t.id = $1 GROUP BY t.id`, [id])).rows[0] ?? null;
+  }
+
+  async getJoke(id: string): Promise<Joke | null> {
+    return (await this.pool.query<Joke>(`SELECT ${jokeColumns} FROM jokes j WHERE j.id = $1`, [id])).rows[0] ?? null;
+  }
+
   async list(filter: JokeFilter = {}): Promise<Joke[]> {
     const limit = filter.limit ?? 50;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ValidationError('Page size must be between 1 and 100.');
@@ -103,8 +120,18 @@ export class JokeRepository {
     return (await this.pool.query('DELETE FROM jokes WHERE id = $1', [id])).rowCount === 1;
   }
 
-  async deleteTheme(id: string): Promise<boolean> {
-    return (await this.pool.query('DELETE FROM themes WHERE id = $1', [id])).rowCount === 1;
+  async deleteTheme(id: string, expectedUsage?: number): Promise<boolean> {
+    return transaction(this.pool, async client => {
+      // Block new FK links while checking the count the admin confirmed.
+      const theme = await client.query('SELECT id FROM themes WHERE id = $1 FOR UPDATE', [id]);
+      if (!theme.rowCount) return false;
+      if (expectedUsage !== undefined) {
+        const usage = await client.query<{ count: number }>('SELECT count(*)::int AS count FROM joke_themes WHERE theme_id = $1', [id]);
+        if (usage.rows[0]!.count !== expectedUsage) throw new ConflictError('Theme usage changed. Review the current count and confirm again.');
+      }
+      await client.query('DELETE FROM themes WHERE id = $1', [id]);
+      return true;
+    });
   }
 
   async createDeck(name: string): Promise<Deck> {

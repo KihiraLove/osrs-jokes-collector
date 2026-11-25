@@ -166,10 +166,12 @@ describe('admin authentication', () => {
     assert.equal((await f.app.inject('/admin/export')).statusCode, 401);
     const pending = await challenge(f.app);
     const cases = [
+      { headers: { origin: 'null', referer: f.settings.origin }, csrf: pending.csrf },
       { headers: { origin: 'https://evil.example' }, csrf: pending.csrf },
       { headers: {}, csrf: pending.csrf },
       { headers: { origin: f.settings.origin }, csrf: 'bad' },
     ];
+    assert.equal(pending.page.headers['referrer-policy'], 'same-origin');
     for (const [index, entry] of cases.entries()) {
       const response = await f.app.inject({ method: 'POST', url: '/admin/login', remoteAddress: `198.51.100.${index + 1}`,
         headers: { cookie: pending.cookie, ...entry.headers }, payload: { csrf: entry.csrf, key: f.printed[0] } });

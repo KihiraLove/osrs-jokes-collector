@@ -5,6 +5,8 @@ import type { AdminSettings } from './config.ts';
 import { CHALLENGE_SECONDS, csrfTokenForSession, isToken, matchesCsrf, SESSION_SECONDS } from './store.ts';
 import type { AdminSession, AdminStore } from './store.ts';
 import { renderAdmin, renderAdminError, renderLogin } from '../views/admin.ts';
+import type { JokeRepository } from '../db/repository.ts';
+import { registerModeration } from './moderation.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -18,6 +20,7 @@ export interface AdminOptions {
   store: AdminStore;
   settings: AdminSettings;
   onInitialKey(key: string): void;
+  repository?: JokeRepository;
   // New curation/export routes belong in this protected scope.
   routes?: (admin: FastifyInstance) => void | Promise<void>;
 }
@@ -46,8 +49,9 @@ export function registerAdmin(app: FastifyInstance, options: AdminOptions): void
 
     admin.addHook('onRequest', async (request, reply) => {
       reply.header('Cache-Control', 'private, no-store').header('Pragma', 'no-cache').header('Vary', 'Cookie');
-      reply.header('Content-Security-Policy', "default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
-      reply.header('X-Content-Type-Options', 'nosniff').header('Referrer-Policy', 'no-referrer');
+      reply.header('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+      // Native form POSTs need a usable same-origin Origin/Referer for CSRF.
+      reply.header('X-Content-Type-Options', 'nosniff').header('Referrer-Policy', 'same-origin');
       if (request.method === 'POST' && request.routeOptions.url === '/admin/login') {
         const retry = await store.takeRateLimit('login', request.ip);
         if (retry !== null) return reply.header('Retry-After', retry).code(429).type('text/html').send(renderAdminError('Too many login attempts. Try again shortly.'));
@@ -78,11 +82,12 @@ export function registerAdmin(app: FastifyInstance, options: AdminOptions): void
       const status = typeof requestedStatus === 'number' && requestedStatus >= 400 && requestedStatus < 500 ? requestedStatus : 500;
       if (status === 500) request.log.error('Admin request failed.');
       // Parser/validation errors can contain submitted data: never echo/log them.
-      reply.code(status).type('text/html').send(renderAdminError('The request could not be completed. Please try again.'));
+      reply.code(status).type('text/html').send(renderAdminError(status === 500 ? 'Admin data is temporarily unavailable. Please try again shortly.' : 'The request could not be completed. Please try again.'));
     });
 
     admin.get('/', { prefixTrailingSlash: 'both', config: { adminPublic: true } }, async (request, reply) => {
       if (request.adminSession?.authenticated && request.adminToken) {
+        if (options.repository) return reply.code(303).header('Location', '/admin/jokes').send();
         return reply.type('text/html').send(renderAdmin(csrfTokenForSession(request.adminToken)));
       }
       let token = request.adminToken;
@@ -109,6 +114,7 @@ export function registerAdmin(app: FastifyInstance, options: AdminOptions): void
       return reply.code(303).header('Location', '/admin').send();
     });
 
+    if (options.repository) registerModeration(admin, options.repository);
     if (options.routes) await options.routes(admin);
     admin.setNotFoundHandler((_request, reply) => reply.code(404).type('text/html').send(renderAdminError('Page not found.')));
   }, { prefix: '/admin' });

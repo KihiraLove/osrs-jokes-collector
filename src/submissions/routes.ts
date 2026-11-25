@@ -3,7 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import type { JokeRepository } from '../db/repository.ts';
 import { ValidationError } from '../domain.ts';
 import type { JokeInput } from '../domain.ts';
-import { normalizeJoke, normalizeName, normalizeThemes } from '../normalization.ts';
+import { normalizeJoke } from '../normalization.ts';
+import { parseThemeInput, readThemeDraft } from '../theme-input.ts';
 import { emptyDraft, renderHome } from '../views/home.ts';
 import type { SubmissionDraft } from '../views/home.ts';
 import type { SubmissionLimiter } from './limiter.ts';
@@ -25,8 +26,7 @@ function draftFrom(body: Record<string, unknown>): SubmissionDraft {
     kind: body.kind === 'two_part' ? 'two_part' : 'single',
     text: typeof body.text === 'string' ? body.text : '',
     punchline: typeof body.punchline === 'string' ? body.punchline : '',
-    themes: typeof body.themes === 'string' ? [body.themes] : Array.isArray(body.themes) ? body.themes.filter((value): value is string => typeof value === 'string') : [],
-    newThemes: typeof body.newThemes === 'string' ? body.newThemes : '',
+    ...readThemeDraft(body),
   };
 }
 
@@ -35,13 +35,7 @@ function submissionInput(body: Record<string, unknown>, draft: SubmissionDraft):
   if (typeof body.text !== 'string' || (body.kind === 'two_part' && typeof body.punchline !== 'string')) {
     throw new ValidationError('Enter the joke text and, for a two part joke, its punchline.');
   }
-  if ((body.themes !== undefined && typeof body.themes !== 'string' && (!Array.isArray(body.themes) || !body.themes.every(value => typeof value === 'string')))
-    || (body.newThemes !== undefined && typeof body.newThemes !== 'string')) {
-    throw new ValidationError('Choose theme names or enter new themes one per line.');
-  }
-  const names = [...draft.themes, ...draft.newThemes.split(/\r?\n/u).filter(name => /[^\p{White_Space}\uFEFF]/u.test(name))];
-  const unique = new Map(names.map(name => { const value = normalizeName(name, 80); return [value.key, value.name]; }));
-  const themes = normalizeThemes([...unique.values()]).map(theme => theme.name);
+  const themes = parseThemeInput(body);
   const input: JokeInput = { kind: body.kind, text: body.text, punchline: body.kind === 'two_part' ? draft.punchline : null, themes };
   normalizeJoke(input);
   return input;

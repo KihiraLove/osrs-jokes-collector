@@ -101,20 +101,29 @@ pnpm typecheck
 pnpm build
 node --test --test-isolation=none --test-name-pattern='name normalization' test/normalization.test.ts
 node --test --test-isolation=none --test-name-pattern='readiness|migration failure' test/app.test.ts
-TEST_DATABASE_URL=postgresql://localhost/osrs_jokes_collector_test \
-  node --test --test-isolation=none --test-name-pattern='migration startup|database constraints' test/database.test.ts
+node --test --test-isolation=none --test-name-pattern='migration startup|database constraints' test/database.test.ts
 ```
 
-Database tests require `TEST_DATABASE_URL` and a role allowed to create schemas.
-Use a dedicated local test database. Each run creates a random schema and removes
-only that schema afterward; application data is not truncated. Tests use real
-PostgreSQL, including migration concurrency, constraints, concurrent theme
-creation, deletion semantics and rollback of stale bulk selections.
+Database tests automatically start a temporary PostgreSQL 18.7 process using the
+dev-only `embedded-postgres` dependency. Run `pnpm install --frozen-lockfile`
+after updating the branch to install its platform binaries. No Docker daemon,
+existing database, or environment variables are required. Run tests as your
+normal user, since PostgreSQL cannot run as root. Each run gets a temporary data
+directory and random credentials; PostgreSQL stops and its data is deleted
+afterward. On Linux/macOS it uses a private Unix socket; on Windows it uses a
+free localhost port.
+
+To use an existing database instead, set `TEST_DATABASE_URL` to a dedicated local
+test database with a role allowed to create schemas. This overrides automatic
+startup. Each run creates and removes only its own random schema; it does not
+stop the supplied database or truncate application data. Tests use real
+PostgreSQL for migration concurrency, constraints, concurrent themes, deletion
+semantics and rollback of stale bulk selections.
 
 **The owner runs the complete suite manually:**
 
 ```sh
-TEST_DATABASE_URL=postgresql://localhost/osrs_jokes_collector_test pnpm test
+pnpm test
 ```
 
 Only release images will be published. GitHub Actions may build/publish an

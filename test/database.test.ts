@@ -1,28 +1,41 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import type { Pool } from 'pg';
 import { ConflictError } from '../src/domain.ts';
 import { createPool } from '../src/db/database.ts';
 import { migrate } from '../src/db/migrations.ts';
 import { JokeRepository } from '../src/db/repository.ts';
+import { startTestDatabase } from './helpers/database.ts';
+import type { TestDatabase } from './helpers/database.ts';
 
-const connectionString = process.env.TEST_DATABASE_URL;
-if (!connectionString) throw new Error('Set TEST_DATABASE_URL to a local test PostgreSQL database. Tests create and remove only their own random schema.');
 const schema = `collector_test_${randomUUID().replaceAll('-', '')}`;
-const admin = createPool({ connectionString });
-const pool = createPool({ connectionString, options: `-c search_path=${schema}` });
-const repository = new JokeRepository(pool);
+let database: TestDatabase | undefined;
+let admin: Pool | undefined;
+let pool: Pool;
+let repository: JokeRepository;
+let schemaCreated = false;
 
 before(async () => {
+  database = await startTestDatabase();
+  const { connectionString } = database;
+  admin = createPool({ connectionString });
+  pool = createPool({ connectionString, options: `-c search_path=${schema}` });
+  repository = new JokeRepository(pool);
   await admin.query(`CREATE SCHEMA "${schema}"`);
+  schemaCreated = true;
 });
 
 after(async () => {
-  await pool.end();
   try {
-    await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    await pool?.end();
+    if (schemaCreated) await admin!.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
   } finally {
-    await admin.end();
+    try {
+      await admin?.end();
+    } finally {
+      await database?.close();
+    }
   }
 });
 

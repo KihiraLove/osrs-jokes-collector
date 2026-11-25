@@ -1,16 +1,27 @@
 import { readFile } from 'node:fs/promises';
 import Fastify from 'fastify';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import type { DatabaseLifecycle } from './db/database.ts';
 import { renderHome } from './views/home.ts';
+import { registerAdmin } from './admin/routes.ts';
+import type { AdminOptions } from './admin/routes.ts';
 
-export function createApp(database: DatabaseLifecycle, logger = false): FastifyInstance {
+export function createApp(database: DatabaseLifecycle, logger: FastifyServerOptions['logger'] = false, admin?: AdminOptions): FastifyInstance {
   let styles = '';
-  const app = Fastify({ logger, trustProxy: false, bodyLimit: 65_536, requestTimeout: 10_000, forceCloseConnections: 'idle' });
+  const safeLogger = !logger ? false : {
+    ...(typeof logger === 'object' ? logger : {}),
+    redact: ['req.headers.cookie', 'req.headers.authorization', 'req.body', 'res.headers.set-cookie'],
+    serializers: { req: (request: { method: string; url?: string }) => ({ method: request.method, url: (request.url ?? '/').split('?')[0] ?? '/' }) },
+  };
+  const app = Fastify({ logger: safeLogger, trustProxy: admin?.settings.trustProxy ?? false, bodyLimit: 65_536, requestTimeout: 10_000, forceCloseConnections: 'idle' });
 
   app.addHook('onReady', async () => {
     styles = await readFile(new URL('./public/styles.css', import.meta.url), 'utf8');
     await database.initialize();
+    if (admin) {
+      const key = await admin.store.initialize();
+      if (key !== null) admin.onInitialKey(key);
+    }
   });
   app.addHook('onClose', () => database.close());
   app.get('/', async (_request, reply) => reply.type('text/html; charset=utf-8').send(renderHome()));
@@ -25,5 +36,6 @@ export function createApp(database: DatabaseLifecycle, logger = false): FastifyI
       return reply.code(503).send({ status: 'unavailable' });
     }
   });
+  if (admin) registerAdmin(app, admin);
   return app;
 }

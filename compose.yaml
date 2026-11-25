@@ -50,6 +50,8 @@ services:
       PGUSER: collector
       PGDATABASE: collector
       PGPASSWORD_FILE: /run/collector-secrets/postgres-password
+      PUBLIC_ORIGIN: https://${COLLECTOR_HOSTNAME:-localhost}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
     depends_on:
       bootstrap:
         condition: service_completed_successfully

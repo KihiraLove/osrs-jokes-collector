@@ -4,10 +4,10 @@ A small website for collecting jokes and curating decks for the
 [OSRS Jokes RuneLite plugin](https://github.com/KihiraLove/osrs-jokes).
 The interface uses a simple OSRS brown/yellow palette.
 
-The foundation includes the server scaffold, PostgreSQL schema, migrations and
-transactional data access, plus one application Docker image and automatic
-database credential bootstrap. The public form, admin login, deck controls,
-JSON download and release-image publication are tracked separately in the
+The foundation includes the server scaffold, PostgreSQL schema, migrations,
+transactional data access, one application Docker image, automatic database
+credential bootstrap and key-only admin authentication. The public form, deck
+controls, JSON download and release-image publication are tracked separately in the
 [MVP plan](https://github.com/KihiraLove/osrs-jokes-collector/issues/1).
 
 ## Start with Docker Compose
@@ -23,7 +23,16 @@ database password in a persistent volume before PostgreSQL starts. Restarts
 reuse that credential and the database. No password/token environment variables
 are required.
 
-The current page is a scaffold. Admin-key generation/login arrive in issue #4.
+The public page is a scaffold. Open `/admin` to sign in using the generated key.
+Find the first-start key with:
+
+```sh
+docker compose -f compose.yaml -f compose.local.yaml logs app
+```
+
+Look for `OSRS_JOKES_ADMIN_KEY=...`. It is printed once after database
+initialization; restarts do not print or replace it. No username is required.
+See [admin access](docs/admin.md) for key recovery/rotation and session behavior.
 See [deployment and backup instructions](docs/deployment.md) for Traefik,
 settings, credential recovery, upgrades and restore commands. Release images
 will be published in issue #10; use the local build until then.
@@ -106,8 +115,9 @@ until the production proxy configuration is implemented.
 - Joke pagination uses `(created_at, id)` and preserves microseconds in its
   cursor. Theme/deck indexes support filtering and membership queries. Deck
   reads use one snapshot, include empty decks and exclude unassigned jokes.
-- The schema reserves admin-key/session verifier storage; authentication is
-  implemented in its own issue. No admin credential is generated at this step.
+- Admin keys and opaque session tokens persist only as SHA-256 verifiers.
+  Login replaces its anonymous CSRF session; logout, expiry and key rotation
+  revoke access. Login rate limits persist in PostgreSQL.
 
 ## Local checks
 
@@ -122,6 +132,7 @@ node --test --test-isolation=none --test-name-pattern='name normalization' test/
 node --test --test-isolation=none --test-name-pattern='readiness|migration failure' test/app.test.ts
 node --test --test-isolation=none --test-name-pattern='migration startup|database constraints' test/database.test.ts
 node --test --test-isolation=none test/bootstrap.test.ts
+node --test --test-isolation=none --test-name-pattern='admin login|admin state changes' test/admin.test.ts
 ```
 
 Database tests automatically start a temporary PostgreSQL 18.7 process using the
@@ -158,7 +169,8 @@ pnpm test:compose
 
 It uses a unique temporary Compose project and a local image, verifies startup,
 container ownership, read-only credentials, recreation/persistence, safe failures
-for lost/corrupt credentials, and PostgreSQL backup/restore with stable deck IDs.
+for lost/corrupt credentials, PostgreSQL backup/restore with stable deck IDs,
+initial admin-key output, login after restart/restore, and operator key rotation.
 It removes its test containers, volumes and image afterward. It is separate from
 `pnpm test` so ordinary local tests continue to work without Docker.
 

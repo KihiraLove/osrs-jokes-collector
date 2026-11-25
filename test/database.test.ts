@@ -42,16 +42,14 @@ after(async () => {
 test('migration startup is concurrent-safe, idempotent and detects changed history', async () => {
   await Promise.all([migrate(pool), migrate(pool), migrate(pool)]);
   await migrate(pool);
-  assert.equal((await pool.query('SELECT * FROM schema_migrations')).rowCount, 1);
-  await pool.query("UPDATE schema_migrations SET checksum = 'changed' RETURNING version");
+  const history = await pool.query<{ version: string; checksum: string }>('SELECT version, checksum FROM schema_migrations ORDER BY version');
+  assert.deepEqual(history.rows.map(row => row.version), ['001_initial.sql', '002_admin_authentication.sql']);
+  const original = history.rows[0]!;
+  await pool.query("UPDATE schema_migrations SET checksum = 'changed' WHERE version = $1", [original.version]);
   try {
     await assert.rejects(migrate(pool), /migration history differs/);
   } finally {
-    // This is an isolated schema; removing the ledger row alone would rerun DDL.
-    const { readFile } = await import('node:fs/promises');
-    const { createHash } = await import('node:crypto');
-    const sql = await readFile(new URL('../src/db/migrations/001_initial.sql', import.meta.url), 'utf8');
-    await pool.query('UPDATE schema_migrations SET checksum = $1', [createHash('sha256').update(sql).digest('hex')]);
+    await pool.query('UPDATE schema_migrations SET checksum = $1 WHERE version = $2', [original.checksum, original.version]);
   }
 });
 

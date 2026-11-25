@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { createServer } from 'node:net';
 
 // This opt-in check owns only the project/volumes named by its random prefix.
 // It builds a local image and never pushes images or contacts GitHub.
@@ -44,12 +45,59 @@ const deckId = randomUUID();
 const jokeId = randomUUID();
 const verifyData = async () => assert.equal(text(await sql(`SELECT d.id || ':' || j.id FROM decks d JOIN jokes j ON j.deck_id = d.id WHERE d.id = '${deckId}'`)), `${deckId}:${jokeId}`);
 
+async function localPort() {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      server.close(error => error ? reject(error) : resolve(address.port));
+    });
+  });
+}
+
+async function adminKeyFromLogs() {
+  const logs = text(await compose(['logs', '--no-color', '--no-log-prefix', 'app']));
+  const matches = [...logs.matchAll(/^OSRS_JOKES_ADMIN_KEY=([a-f0-9]{64})$/gm)];
+  assert.equal(matches.length, 1, 'The initial admin key must be printed once.');
+  return matches[0][1];
+}
+function sessionCookie(response) {
+  const value = response.headers.getSetCookie().find(cookie => cookie.startsWith('osrs-jokes-admin-local='));
+  assert.ok(value, 'Expected a local admin session cookie.');
+  assert.match(value, /HttpOnly/);
+  assert.match(value, /SameSite=Strict/);
+  return value.split(';')[0];
+}
+function csrfField(body) {
+  const match = body.match(/name="csrf" value="([a-f0-9]{64})"/);
+  assert.ok(match, 'Expected an admin CSRF field.');
+  return match[1];
+}
+async function adminChallenge(origin) {
+  const response = await fetch(`${origin}/admin`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('cache-control'), /no-store/);
+  return { cookie: sessionCookie(response), csrf: csrfField(await response.text()) };
+}
+async function adminLogin(origin, key) {
+  const challenge = await adminChallenge(origin);
+  const response = await fetch(`${origin}/admin/login`, { method: 'POST', redirect: 'manual', headers: {
+    Origin: origin, Cookie: challenge.cookie, 'Content-Type': 'application/x-www-form-urlencoded',
+  }, body: new URLSearchParams({ key, csrf: challenge.csrf }) });
+  assert.equal(response.status, 303, 'Expected admin login to succeed.');
+  const cookie = sessionCookie(response);
+  assert.ok(cookie !== challenge.cookie, 'Login must rotate the session token.');
+  return cookie;
+}
+
 let dockerAvailable = false;
 try {
   await docker(['info', '--format', '{{.ServerVersion}}']);
   dockerAvailable = true;
   console.log('Building the local application image...');
   await compose(['build', 'app'], { timeout: 600_000 });
+  environment.COLLECTOR_PORT = String(await localPort());
   console.log('Starting an empty, isolated Compose project...');
   await up();
   const app = await inspect('app');
@@ -64,7 +112,11 @@ try {
   assert.ok(!db.NetworkSettings.Ports['5432/tcp']?.length);
   assert.ok(Object.values(app.NetworkSettings.Ports).flat().filter(Boolean).every(port => port.HostIp === '127.0.0.1'));
   const address = text(await compose(['port', 'app', '3000']));
-  assert.equal((await fetch(`http://${address}/health/ready`, { signal: AbortSignal.timeout(3_000) })).status, 200);
+  const origin = `http://${address}`;
+  assert.equal((await fetch(`${origin}/health/ready`, { signal: AbortSignal.timeout(3_000) })).status, 200);
+  console.log('Checking initial admin key output and login...');
+  const initialAdminKey = await adminKeyFromLogs();
+  const authenticatedCookie = await adminLogin(origin, initialAdminKey);
   await compose(['exec', '-T', 'app', 'node', '--input-type=module', '-e', `
     import { writeFileSync } from 'node:fs';
     import assert from 'node:assert/strict';
@@ -84,6 +136,9 @@ try {
   await up();
   assert.equal(await fingerprint(), originalFingerprint);
   await verifyData();
+  assert.ok(!text(await compose(['logs', '--no-color', '--no-log-prefix', 'app'])).includes('OSRS_JOKES_ADMIN_KEY='), 'Restart must not print the existing key.');
+  const resumedAdmin = await fetch(`${origin}/admin`, { headers: { Cookie: authenticatedCookie } });
+  assert.match(await resumedAdmin.text(), /action="\/admin\/logout"/);
 
   for (const corruption of ['missing', 'corrupt']) {
     console.log(`Checking safe failure for ${corruption} credentials...`);
@@ -109,13 +164,27 @@ try {
   console.log('Restoring the backup into fresh test volumes...');
   await compose(['down', '--volumes']);
   await restoreSecrets(archive);
-  await up();
-  await compose(['stop', 'app']);
+  await compose(['up', '--detach', '--wait', '--wait-timeout', '120', 'db'], { timeout: 180_000 });
   await compose(['exec', '-T', 'db', 'pg_restore', '-U', 'collector', '-d', 'collector', '--clean', '--if-exists', '--no-owner', '--exit-on-error'], { input: dump });
   await up();
   assert.equal(await fingerprint(), originalFingerprint);
   await verifyData();
-  console.log('Compose startup, ownership, read-only secrets, persistence, safe failures and backup/restore checks passed.');
+  console.log('Checking restored admin login and operator key rotation...');
+  assert.ok(!text(await compose(['logs', '--no-color', '--no-log-prefix', 'app'])).includes('OSRS_JOKES_ADMIN_KEY='), 'Restoring a credential must not replace/reprint it.');
+  const restoredCookie = await adminLogin(origin, initialAdminKey);
+  const rotation = text(await compose(['exec', '-T', 'app', 'node', 'dist/admin-key.js', 'rotate']));
+  const rotatedKey = rotation.match(/^OSRS_JOKES_ADMIN_KEY=([a-f0-9]{64})$/m)?.[1];
+  assert.ok(rotatedKey, 'Operator rotation must print the new admin key.');
+  assert.ok(rotatedKey !== initialAdminKey, 'Rotation must replace the key.');
+  const revoked = await fetch(`${origin}/admin`, { headers: { Cookie: restoredCookie } });
+  assert.match(await revoked.text(), /name="key"/);
+  const pending = await adminChallenge(origin);
+  const rejected = await fetch(`${origin}/admin/login`, { method: 'POST', headers: {
+    Origin: origin, Cookie: pending.cookie, 'Content-Type': 'application/x-www-form-urlencoded',
+  }, body: new URLSearchParams({ key: initialAdminKey, csrf: pending.csrf }) });
+  assert.equal(rejected.status, 401, 'The old admin key must stop working.');
+  await adminLogin(origin, rotatedKey);
+  console.log('Compose startup, ownership, credentials, persistence, safe failures, backup/restore and admin lifecycle checks passed.');
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

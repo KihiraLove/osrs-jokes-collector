@@ -7,5 +7,8 @@ services:
     pull_policy: never
     build:
       context: .
+    environment:
+      PUBLIC_ORIGIN: http://127.0.0.1:${COLLECTOR_PORT:-3000}
+      ALLOW_INSECURE_LOCAL_ADMIN: "true"
     ports:
       - "127.0.0.1:${COLLECTOR_PORT:-3000}:3000"

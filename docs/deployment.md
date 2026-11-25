@@ -2,8 +2,8 @@
 
 Run these commands from the repository root with Docker Engine and Docker
 Compose installed. The application image contains the compiled website/backend,
-migrations, bootstrap command and readiness check. PostgreSQL uses the official
-`postgres:18.7-bookworm` image. Release-image publication is tracked in issue #10;
+migrations, credential bootstrap/rotation commands and readiness check.
+PostgreSQL uses the official `postgres:18.7-bookworm` image. Release-image publication is tracked in issue #10;
 this issue prepares the image and stack without publishing anything.
 
 ## Local build
@@ -45,7 +45,7 @@ the localhost override is used only for development.
 Cloudflare should proxy the DNS record to the Docker host and use Full (strict)
 TLS with Traefik's origin certificate. Detailed Cloudflare caching rules,
 forwarded-header trust and release publication are tracked in issue #10. The
-app currently keeps forwarded headers untrusted.
+app keeps forwarded headers untrusted unless `TRUSTED_PROXY_CIDRS` is configured.
 
 ## Settings and stored data
 
@@ -56,11 +56,14 @@ app currently keeps forwarded headers untrusted.
 | `TRAEFIK_NETWORK` | `traefik` | Existing proxy network |
 | `COLLECTOR_PORT` | `3000` | Local override's localhost port |
 | `COMPOSE_PROJECT_NAME` | `osrs-jokes-collector` | Optional isolated deployment name |
+| `TRUSTED_PROXY_CIDRS` | Empty (forwarding headers ignored) | Optional trusted Traefik/Cloudflare proxy addresses/CIDRs |
 
 Compose supplies internal database host/user/name and password-file paths.
 Operators do not supply passwords, admin keys or session tokens as environment
-variables. Admin authentication and its first-start key output are added in
-issue #4; this stack currently initializes the database credential only.
+variables. On first application initialization, `dc logs app` contains
+`OSRS_JOKES_ADMIN_KEY=...`. Use it at `/admin` without a username. Restarts keep
+the key without reprinting it. See [admin access](admin.md) for recovery and
+rotation commands.
 
 - `postgres_data` stores PostgreSQL under `/var/lib/postgresql/18/docker`.
 - `collector_secrets` stores `postgres-password`, a generated 256-bit random
@@ -104,7 +107,7 @@ an exited initializer; use `up` after restoring or repairing credentials.
 ## Backup
 
 Keep the database dump and matching secret archive together. The dump includes
-stable joke/deck IDs and, once implemented, the admin-key/session verifiers.
+stable joke/deck IDs and the admin-key/session verifiers.
 This procedure pauses application writes and backs up all PostgreSQL objects:
 
 ```sh
@@ -120,8 +123,8 @@ dc start app
 
 `backups/` is ignored by Git and excluded from the Docker build context. Keep
 these archives in your backup storage with access restricted to the operator.
-The generated password is never printed by normal startup logs. Future admin
-key messages will be available with `dc logs app` after issue #4.
+The generated database password is never printed. The admin key appears only in
+its first-start or explicit operator-rotation stdout message.
 
 ## Restore and credential recovery
 
@@ -141,7 +144,8 @@ dc up --detach --wait app
 
 For a production cutover, stop the original app before bringing the restored
 app onto the same Traefik hostname. Verify readiness and saved deck IDs before
-switching traffic. Future admin login verification is added alongside issue #4.
+switching traffic, and verify `/admin` accepts the original admin key. Restoring
+the verifier does not print or generate a replacement key.
 
 If only credentials are lost/corrupt, stop the stack and restore `secrets.tar`
 to its existing `collector_secrets` volume with the same tar command, then run
@@ -174,7 +178,8 @@ pnpm test:compose
 The Docker check builds one uniquely tagged local image, creates an isolated
 project, and checks non-root app ownership, file permissions/read-only mounts,
 private database networking, restart/recreation, missing/corrupt/mismatched
-credentials, and a real PostgreSQL dump/restore preserving deck and joke IDs.
+credentials, a real PostgreSQL dump/restore preserving deck/joke IDs and admin
+login, first-start key output, session persistence and operator key rotation.
 It deletes only its own test project/volumes/image. No development images are
 published and no validation runs in GitHub Actions. The owner runs the complete
 `pnpm test` suite manually.

@@ -85,16 +85,18 @@ describe('public submissions', () => {
       { kind: 'single', text: '  A single\nline break.  ' },
       { kind: 'single', text: 'One theme', newThemes: 'Skilling' },
       { kind: 'two_part', text: '\u00a0A setup?\n\nAnother line. ', punchline: '  The punchline!\uFEFF', themes: ['Skilling'], newThemes: 'PvM\n Gielinor ' },
+      { kind: 'single', text: 'Existing choices', themes: ['PvM', 'Skilling'] },
     ]) {
       const response = await f.post(body);
       assert.equal(response.statusCode, 303);
       assert.equal(response.headers.location, '/?submitted=1');
     }
     const rows = await f.repository.list();
-    assert.equal(rows.length, 3);
+    assert.equal(rows.length, 4);
     assert.ok(rows.every(joke => joke.deckId === null));
     assert.equal(rows.find(joke => joke.text.startsWith('A single'))!.themes.length, 0);
     assert.equal(rows.find(joke => joke.text === 'One theme')!.themes.length, 1);
+    assert.deepEqual(rows.find(joke => joke.text === 'Existing choices')!.themes.map(theme => theme.name), ['PvM', 'Skilling']);
     const twoPart = rows.find(joke => joke.kind === 'two_part')!;
     assert.equal(twoPart.text, 'A setup?\n\nAnother line.');
     assert.equal(twoPart.punchline, 'The punchline!');

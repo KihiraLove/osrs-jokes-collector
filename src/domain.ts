@@ -5,6 +5,10 @@ export interface Theme {
   name: string;
 }
 
+export interface ThemeUsage extends Theme {
+  jokeCount: number;
+}
+
 export interface Deck {
   id: string;
   name: string;
@@ -16,6 +20,7 @@ export interface Joke {
   text: string;
   punchline: string | null;
   deckId: string | null;
+  deckName: string | null;
   // Keep PostgreSQL's microsecond precision for keyset pagination.
   createdAt: string;
   themes: Theme[];

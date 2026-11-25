@@ -10,6 +10,8 @@ import type { AdminOptions } from './admin/routes.ts';
 export function createApp(database: DatabaseLifecycle, logger: FastifyServerOptions['logger'] = false, admin?: AdminOptions, submissions?: SubmissionOptions): FastifyInstance {
   let styles = '';
   let submissionScript = '';
+  let themePickerScript = '';
+  let themeEditorScript = '';
   const safeLogger = !logger ? false : {
     ...(typeof logger === 'object' ? logger : {}),
     redact: ['req.headers.cookie', 'req.headers.authorization', 'req.body', 'res.headers.set-cookie'],
@@ -20,6 +22,8 @@ export function createApp(database: DatabaseLifecycle, logger: FastifyServerOpti
   app.addHook('onReady', async () => {
     styles = await readFile(new URL('./public/styles.css', import.meta.url), 'utf8');
     submissionScript = await readFile(new URL('./public/submission.js', import.meta.url), 'utf8');
+    themePickerScript = await readFile(new URL('./public/theme-picker.js', import.meta.url), 'utf8');
+    themeEditorScript = await readFile(new URL('./public/theme-editor.js', import.meta.url), 'utf8');
     await database.initialize();
     if (admin) {
       const key = await admin.store.initialize();
@@ -30,6 +34,8 @@ export function createApp(database: DatabaseLifecycle, logger: FastifyServerOpti
   registerSubmissions(app, submissions);
   app.get('/styles.css', async (_request, reply) => reply.type('text/css; charset=utf-8').send(styles));
   app.get('/submission.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(submissionScript));
+  app.get('/theme-picker.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(themePickerScript));
+  app.get('/theme-editor.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(themeEditorScript));
   app.get('/health/live', async () => ({ status: 'ok' }));
   app.get('/health/ready', async (_request, reply) => {
     reply.header('Cache-Control', 'no-store');

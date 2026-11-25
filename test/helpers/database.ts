@@ -3,6 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+import { Client } from 'pg';
 
 export interface TestDatabase {
   connectionString: string;
@@ -64,7 +66,22 @@ export async function startTestDatabase(connectionString = process.env.TEST_DATA
     close: async () => {
       if (closed) return;
       closed = true;
-      await cluster.stop();
+      const probe = new Client({ connectionString: url.toString(), connectionTimeoutMillis: 5_000, statement_timeout: 1_000 });
+      try {
+        await probe.connect();
+        const deadline = Date.now() + 5_000;
+        // pg Pool.end() can resolve before its clients finish disconnecting.
+        // Fast-stopping PostgreSQL in that gap sends FATAL to closing clients.
+        for (;;) {
+          const result = await probe.query<{ count: number }>(`SELECT count(*)::int AS count FROM pg_stat_activity
+            WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()`);
+          if (result.rows[0]!.count === 0) break;
+          if (Date.now() >= deadline) throw new Error('Test database still has open client connections during cleanup.');
+          await delay(20);
+        }
+      } finally {
+        try { await probe.end(); } finally { await cluster.stop(); }
+      }
     },
   };
 }

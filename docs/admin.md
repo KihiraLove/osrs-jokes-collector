@@ -39,6 +39,39 @@ For development outside Compose, use your normal database settings:
 DATABASE_URL=postgresql://localhost/osrs_jokes_collector pnpm admin:key:rotate
 ```
 
+## Browse and moderate jokes
+
+After login, `/admin` opens `/admin/jokes`. Each joke shows its complete text,
+separate setup/punchline when applicable, themes, current deck and submission
+time in UTC. Filter by **All themes**, any existing theme, **No theme**, and
+optionally **Unassigned deck**. Unused themes remain in the filter.
+
+Pages contain up to 25 jokes. **Older jokes** keeps the active filters and uses
+the exact PostgreSQL timestamp plus stable joke ID, so new submissions or
+deletions do not shift later pages. **Newest page** starts again with the same
+filters; applying a new filter starts at its newest page. Multi-theme jokes
+appear once per page.
+
+**Edit themes** reuses the public editable picker, complete checkbox list and
+normalization rules. Add existing/new themes or remove every selection to leave
+a joke unthemed. Saving changes only the associations; the text and deck stay
+the same. Validation errors retain the selected values.
+
+**Delete joke** opens a confirmation page showing the full joke. Confirming
+removes that joke and its associations, while keeping its deck and themes.
+Cancel returns to the filtered listing. GET requests never delete records.
+
+The **Themes** page includes every theme and its joke count. **Delete theme**
+shows how many associations will be removed. Confirming preserves all jokes and
+deck assignments. If the count has changed since the confirmation page loaded,
+the app shows the new count and requires another confirmation. Refreshed public
+and admin theme choices reflect the deletion. Deletions are permanent; backups
+are described in [deployment.md](deployment.md).
+
+Stale/deleted records, invalid page links, empty results and temporary database
+failures have explicit feedback. Successful edits/deletions redirect to a GET
+page with a result message, so refresh does not repeat the mutation.
+
 ## Sessions and request protection
 
 - Authenticated sessions expire after eight hours. The browser holds an opaque
@@ -50,6 +83,8 @@ DATABASE_URL=postgresql://localhost/osrs_jokes_collector pnpm admin:key:rotate
 - Login uses a 15-minute anonymous session and a CSRF token derived from its
   HttpOnly cookie. Unsafe requests require a valid session, matching CSRF
   field/header, and the configured Origin (or same-origin Referer fallback).
+  Admin pages use `Referrer-Policy: same-origin` so native form posts retain
+  origin information; no referrer is sent to another origin.
   Successful login replaces the anonymous token. GET/HEAD never log out or
   mutate collection/credential data; login challenges create temporary security
   state only.

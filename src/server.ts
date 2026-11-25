@@ -9,11 +9,13 @@ import { SubmissionLimiter } from './submissions/limiter.ts';
 const port = Number(process.env.PORT ?? 3000);
 if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('PORT must be between 1 and 65535.');
 const pool = createPool(await databaseConfig());
+const repository = new JokeRepository(pool);
 const app = createApp(databaseLifecycle(pool), true, {
   settings: adminSettings(),
   store: new AdminStore(pool),
   onInitialKey: key => console.log(`${ADMIN_KEY_LABEL}${key}`),
-}, { repository: new JokeRepository(pool), limiter: new SubmissionLimiter(pool) });
+  repository,
+}, { repository, limiter: new SubmissionLimiter(pool) });
 // Idle connection failures must not become unhandled EventEmitter errors.
 pool.on('error', () => app.log.error('An idle database connection failed.'));
 

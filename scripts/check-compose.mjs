@@ -44,8 +44,10 @@ const deckId = randomUUID();
 const jokeId = randomUUID();
 const verifyData = async () => assert.equal(text(await sql(`SELECT d.id || ':' || j.id FROM decks d JOIN jokes j ON j.deck_id = d.id WHERE d.id = '${deckId}'`)), `${deckId}:${jokeId}`);
 
+let dockerAvailable = false;
 try {
   await docker(['info', '--format', '{{.ServerVersion}}']);
+  dockerAvailable = true;
   console.log('Building the local application image...');
   await compose(['build', 'app'], { timeout: 600_000 });
   console.log('Starting an empty, isolated Compose project...');
@@ -116,12 +118,13 @@ try {
   console.log('Compose startup, ownership, read-only secrets, persistence, safe failures and backup/restore checks passed.');
 } catch (error) {
   console.error(error.message);
-  if (error.stderr) console.error(error.stderr.toString());
   process.exitCode = 1;
 } finally {
-  await compose(['down', '--volumes', '--remove-orphans']).catch(error => {
-    console.error(`Could not remove test project ${project}: ${error.message}`);
-    process.exitCode = 1;
-  });
-  await docker(['image', 'rm', environment.COLLECTOR_IMAGE]).catch(() => {});
+  if (dockerAvailable) {
+    await compose(['down', '--volumes', '--remove-orphans']).catch(error => {
+      console.error(`Could not remove test project ${project}: ${error.message}`);
+      process.exitCode = 1;
+    });
+    await docker(['image', 'rm', environment.COLLECTOR_IMAGE]).catch(() => {});
+  }
 }

@@ -146,6 +146,9 @@ semantics and rollback of stale bulk selections.
 pnpm test
 ```
 
+This command discovers only `test/**/*.test.ts` files. Helper modules and
+standalone scripts are excluded from test discovery.
+
 The separate Docker packaging check is opt-in and requires access to a running
 Docker daemon:
 

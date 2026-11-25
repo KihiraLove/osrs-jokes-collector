@@ -12,6 +12,7 @@ export function createApp(database: DatabaseLifecycle, logger: FastifyServerOpti
   let submissionScript = '';
   let themePickerScript = '';
   let themeEditorScript = '';
+  let selectionScript = '';
   const safeLogger = !logger ? false : {
     ...(typeof logger === 'object' ? logger : {}),
     redact: ['req.headers.cookie', 'req.headers.authorization', 'req.body', 'res.headers.set-cookie'],
@@ -24,6 +25,7 @@ export function createApp(database: DatabaseLifecycle, logger: FastifyServerOpti
     submissionScript = await readFile(new URL('./public/submission.js', import.meta.url), 'utf8');
     themePickerScript = await readFile(new URL('./public/theme-picker.js', import.meta.url), 'utf8');
     themeEditorScript = await readFile(new URL('./public/theme-editor.js', import.meta.url), 'utf8');
+    selectionScript = await readFile(new URL('./public/admin-selection.js', import.meta.url), 'utf8');
     await database.initialize();
     if (admin) {
       const key = await admin.store.initialize();
@@ -36,6 +38,7 @@ export function createApp(database: DatabaseLifecycle, logger: FastifyServerOpti
   app.get('/submission.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(submissionScript));
   app.get('/theme-picker.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(themePickerScript));
   app.get('/theme-editor.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(themeEditorScript));
+  app.get('/admin-selection.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(selectionScript));
   app.get('/health/live', async () => ({ status: 'ok' }));
   app.get('/health/ready', async (_request, reply) => {
     reply.header('Cache-Control', 'no-store');

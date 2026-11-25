@@ -72,6 +72,40 @@ Stale/deleted records, invalid page links, empty results and temporary database
 failures have explicit feedback. Successful edits/deletions redirect to a GET
 page with a result message, so refresh does not repeat the mutation.
 
+## Decks and bulk assignment
+
+The **Decks** page creates empty decks, shows their joke counts and immutable
+export IDs, and provides rename/delete controls. Names are required, allow up
+to 100 Unicode code points after normalization, and are case-insensitively
+unique. Renaming preserves the export ID. Deck deletion requires confirmation
+and unassigns its jokes while preserving their text and themes. A changed joke
+count requires a fresh confirmation. Empty decks remain manageable.
+
+On **Jokes**, check individual jokes or use **Select current page**. This selects
+only the explicit visible rows. The total count includes selections on other
+pages or outside current filters; these hidden selections are called out.
+Selecting the same joke under several themes counts it once. **Clear selection**
+clears the entire selection. Up to 500 jokes can be selected.
+
+Checkbox changes save automatically before normal page/filter navigation. With
+JavaScript disabled, use **Update selection** before changing filters or pages.
+Selection lives in PostgreSQL under the current admin session, survives app
+restarts, and is shared by tabs using that session. Logout/key rotation removes
+it, and expired sessions cannot use it. No browser-storage token is needed.
+
+Choose an existing deck, **Create a new deck**, or **Remove from deck**, then
+**Apply to selection**. The entire saved selection is applied in one transaction,
+including new-deck creation when requested. A joke has zero or one deck, so
+assigning a different deck moves it. Success reports affected/moved counts,
+clears the selection and refreshes memberships/counts. Specific decks can also
+be selected in the listing's Deck filter or opened with **View jokes**.
+
+If a selected joke or target deck was deleted, the action reports a conflict
+without changing any remaining membership. Deleted joke IDs remain selected so
+they cannot silently disappear from a bulk action; use **Remove deleted
+selections**, then review/retry, or clear the selection. Actions also reject an
+outdated selection from another tab. Failed actions retain the saved selection.
+
 ## Sessions and request protection
 
 - Authenticated sessions expire after eight hours. The browser holds an opaque

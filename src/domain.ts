@@ -14,6 +14,11 @@ export interface Deck {
   name: string;
 }
 
+export interface DeckUsage extends Deck { jokeCount: number }
+export interface JokeSelection { ids: string[]; staleIds: string[] }
+export type DeckTarget = { kind: 'existing'; id: string } | { kind: 'new'; name: string } | { kind: 'none' };
+export interface AssignmentCounts { count: number; changed: number; moved: number }
+
 export interface Joke {
   id: string;
   kind: JokeKind;
@@ -42,6 +47,7 @@ export interface JokeFilter {
   themeId?: string;
   unthemed?: boolean;
   unassigned?: boolean;
+  deckId?: string;
   before?: JokeCursor;
   limit?: number;
 }

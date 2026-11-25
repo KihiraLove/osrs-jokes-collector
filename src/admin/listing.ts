@@ -3,7 +3,7 @@ import type { JokeCursor, JokeFilter } from '../domain.ts';
 
 export const PAGE_SIZE = 25;
 export const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-export interface ListingState { theme: string; deck: 'all' | 'unassigned'; before: string }
+export interface ListingState { theme: string; deck: string; before: string }
 
 export function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -36,15 +36,15 @@ export function readListing(values: unknown): ListingState {
   const deck = field(input, 'deck', 'all');
   const before = field(input, 'before', '');
   if (theme !== 'all' && theme !== 'none' && !UUID.test(theme)) throw new ValidationError('Choose an existing theme, All themes or No theme.');
-  if (deck !== 'all' && deck !== 'unassigned') throw new ValidationError('Choose All decks or Unassigned deck.');
+  if (deck !== 'all' && deck !== 'unassigned' && !UUID.test(deck)) throw new ValidationError('Choose an existing deck, All decks or Unassigned deck.');
   if (before) decodeCursor(before);
-  return { theme: theme.toLowerCase(), deck, before };
+  return { theme: theme.toLowerCase(), deck: deck.toLowerCase(), before };
 }
 
 export function listingFilter(state: ListingState): JokeFilter {
   return {
     ...(state.theme === 'none' ? { unthemed: true } : state.theme === 'all' ? {} : { themeId: state.theme }),
-    ...(state.deck === 'unassigned' ? { unassigned: true } : {}),
+    ...(state.deck === 'unassigned' ? { unassigned: true } : state.deck === 'all' ? {} : { deckId: state.deck }),
     ...(state.before ? { before: decodeCursor(state.before) } : {}),
     limit: PAGE_SIZE + 1,
   };

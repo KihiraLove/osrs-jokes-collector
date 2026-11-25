@@ -1,0 +1,15 @@
+services:
+  app:
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik}
+      traefik.http.routers.osrs-jokes-collector.rule: Host(`${COLLECTOR_HOSTNAME:?Set COLLECTOR_HOSTNAME to the public hostname}`)
+      traefik.http.routers.osrs-jokes-collector.entrypoints: websecure
+      traefik.http.routers.osrs-jokes-collector.tls: "true"
+      traefik.http.services.osrs-jokes-collector.loadbalancer.server.port: "3000"
+
+networks:
+  proxy:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}

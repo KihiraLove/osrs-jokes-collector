@@ -1,0 +1,78 @@
+name: osrs-jokes-collector
+
+x-application-image: &application-image
+  image: ${COLLECTOR_IMAGE:-ghcr.io/kihiralove/osrs-jokes-collector:latest}
+
+services:
+  bootstrap:
+    <<: *application-image
+    command: [dist/bootstrap.js]
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      disable: true
+    volumes:
+      - collector_secrets:/run/collector-secrets
+      - postgres_data:/postgres-data:ro
+
+  db:
+    image: postgres:18.7-bookworm
+    environment:
+      POSTGRES_USER: collector
+      POSTGRES_DB: collector
+      POSTGRES_PASSWORD_FILE: /run/collector-secrets/postgres-password
+      PGDATA: /var/lib/postgresql/18/docker
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - collector_secrets:/run/collector-secrets:ro
+    networks: [backend]
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+
+  app:
+    <<: *application-image
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: collector
+      PGDATABASE: collector
+      PGPASSWORD_FILE: /run/collector-secrets/postgres-password
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - collector_secrets:/run/collector-secrets:ro
+    networks: [backend, frontend]
+    labels:
+      traefik.enable: "false"
+    restart: unless-stopped
+    stop_grace_period: 20s
+
+volumes:
+  postgres_data:
+  collector_secrets:
+
+networks:
+  backend:
+    internal: true
+  frontend:

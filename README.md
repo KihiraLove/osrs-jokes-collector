@@ -4,10 +4,29 @@ A small website for collecting jokes and curating decks for the
 [OSRS Jokes RuneLite plugin](https://github.com/KihiraLove/osrs-jokes).
 The interface uses a simple OSRS brown/yellow palette.
 
-This first implementation covers [issue #2](https://github.com/KihiraLove/osrs-jokes-collector/issues/2):
-the server scaffold, PostgreSQL schema, migrations and transactional data access.
-The public form, admin login, deck controls, JSON download and production Compose
-packaging are tracked separately in the [MVP plan](https://github.com/KihiraLove/osrs-jokes-collector/issues/1).
+The foundation includes the server scaffold, PostgreSQL schema, migrations and
+transactional data access, plus one application Docker image and automatic
+database credential bootstrap. The public form, admin login, deck controls,
+JSON download and release-image publication are tracked separately in the
+[MVP plan](https://github.com/KihiraLove/osrs-jokes-collector/issues/1).
+
+## Start with Docker Compose
+
+```sh
+docker compose -f compose.yaml -f compose.local.yaml up --build --detach --wait app
+```
+
+Open `http://127.0.0.1:3000`. The local override builds one local image for both
+bootstrap and the app; it publishes nothing to a registry. PostgreSQL starts on
+a private network with no host port. A one-shot initializer creates a random
+database password in a persistent volume before PostgreSQL starts. Restarts
+reuse that credential and the database. No password/token environment variables
+are required.
+
+The current page is a scaffold. Admin-key generation/login arrive in issue #4.
+See [deployment and backup instructions](docs/deployment.md) for Traefik,
+settings, credential recovery, upgrades and restore commands. Release images
+will be published in issue #10; use the local build until then.
 
 ## Local development
 
@@ -29,9 +48,9 @@ Alternatively, omit `DATABASE_URL` and use the standard node-postgres `PGHOST`,
 PostgreSQL installation. No `.env` loader is required.
 
 The app listens on `http://127.0.0.1:3000` by default. Optional `HOST` and `PORT`
-override the bind address and port. Automatic production credential generation
-and Docker Compose are the next issue; production will not require manually
-supplied passwords or tokens.
+override the bind address and port. Compose sets these internally and loads
+its generated credential with `PGPASSWORD_FILE`. Manual database connection
+settings are only needed for development outside Compose.
 
 ```sh
 pnpm build
@@ -102,6 +121,7 @@ pnpm build
 node --test --test-isolation=none --test-name-pattern='name normalization' test/normalization.test.ts
 node --test --test-isolation=none --test-name-pattern='readiness|migration failure' test/app.test.ts
 node --test --test-isolation=none --test-name-pattern='migration startup|database constraints' test/database.test.ts
+node --test --test-isolation=none test/bootstrap.test.ts
 ```
 
 Database tests automatically start a temporary PostgreSQL 18.7 process using the
@@ -125,6 +145,22 @@ semantics and rollback of stale bulk selections.
 ```sh
 pnpm test
 ```
+
+This command discovers only `test/**/*.test.ts` files. Helper modules and
+standalone scripts are excluded from test discovery.
+
+The separate Docker packaging check is opt-in and requires access to a running
+Docker daemon:
+
+```sh
+pnpm test:compose
+```
+
+It uses a unique temporary Compose project and a local image, verifies startup,
+container ownership, read-only credentials, recreation/persistence, safe failures
+for lost/corrupt credentials, and PostgreSQL backup/restore with stable deck IDs.
+It removes its test containers, volumes and image afterward. It is separate from
+`pnpm test` so ordinary local tests continue to work without Docker.
 
 Only release images will be published. GitHub Actions may build/publish an
 explicitly triggered release after local validation; it must not run validation

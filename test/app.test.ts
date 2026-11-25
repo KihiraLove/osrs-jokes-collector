@@ -51,6 +51,10 @@ test('home and static stylesheet are served from the same application', async ()
     const styles = await app.inject('/styles.css');
     assert.equal(styles.statusCode, 200);
     assert.match(styles.headers['content-type']!, /text\/css/);
+    assert.match(home.body, /src="\/submission.js"/);
+    const script = await app.inject('/submission.js');
+    assert.equal(script.statusCode, 200);
+    assert.match(script.headers['content-type']!, /application\/javascript/);
   } finally {
     await app.close();
   }

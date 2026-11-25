@@ -4,10 +4,10 @@ A small website for collecting jokes and curating decks for the
 [OSRS Jokes RuneLite plugin](https://github.com/KihiraLove/osrs-jokes).
 The interface uses a simple OSRS brown/yellow palette.
 
-The foundation includes the server scaffold, PostgreSQL schema, migrations,
-transactional data access, one application Docker image, automatic database
-credential bootstrap and key-only admin authentication. The public form, deck
-controls, JSON download and release-image publication are tracked separately in the
+The website supports public joke submissions and themes, key-only admin
+authentication, transactional PostgreSQL storage and one application Docker
+image with automatic database credentials. Admin curation, deck controls, JSON
+download and release-image publication are tracked separately in the
 [MVP plan](https://github.com/KihiraLove/osrs-jokes-collector/issues/1).
 
 ## Start with Docker Compose
@@ -23,7 +23,8 @@ database password in a persistent volume before PostgreSQL starts. Restarts
 reuse that credential and the database. No password/token environment variables
 are required.
 
-The public page is a scaffold. Open `/admin` to sign in using the generated key.
+Use `/` to submit a single or two part joke with optional existing/new themes.
+Open `/admin` to sign in using the generated key.
 Find the first-start key with:
 
 ```sh
@@ -85,7 +86,35 @@ a database with unknown migrations. Startup fails safely on a mismatch.
 after initialization and a successful database query; outages return 503 without
 connection details. SIGINT/SIGTERM close the HTTP service and connection pool.
 Connection/query timeouts bound database waits. Forwarded headers are untrusted
-until the production proxy configuration is implemented.
+by default; `TRUSTED_PROXY_CIDRS` can explicitly configure the proxy chain.
+
+## Public submissions
+
+Choose **Single joke** or **Two part joke**, enter the active text fields,
+optionally choose/add themes, then submit. Switching types preserves the draft
+in the browser and disables the inactive punchline. Existing themes are offered
+as suggestions and in a complete checkbox list; selected themes can be removed.
+Refresh the page to pick up newly created or deleted themes. Without JavaScript,
+use **Update joke type**, the checkbox list and new themes entered one per line.
+
+Each part permits 1–4,000 Unicode code points after trimming outer whitespace.
+Theme names permit 1–80 code points after the normalization described below;
+choose at most ten distinct themes. The server allows a 128 KiB submission body,
+including URL-encoding overhead. It validates active fields and ignores any
+punchline for a single joke. New submissions always start without a deck.
+
+Validation errors retain entered text and selected themes. The submit button
+disables while sending; success redirects to a clear confirmation and empty
+form so refreshing does not repeat the POST. Request parser/body-size errors
+may require re-entering a draft because the body could not be read.
+
+Submission attempts are limited to five per client address per minute and 100
+globally per minute, shared across app processes in PostgreSQL. Rate-limit
+responses include Retry-After and preserve the parsed draft. Only short-lived
+address hashes are stored in the rate counters; joke records contain no
+submitter identity/IP. Behind a proxy, configure the explicit trusted chain as
+described in [admin access](docs/admin.md); otherwise visitors share the proxy's
+limit. Production proxy configuration is tracked in issue #10.
 
 ## Data rules
 
@@ -93,8 +122,8 @@ until the production proxy configuration is implemented.
   and a nullable deck ID. Single jokes cannot have a punchline; two-part jokes
   require both parts. Database checks reject blank/oversized parts, including
   Unicode whitespace. Each part allows up to 4,000 Unicode code points.
-- Themes use a many-to-many join table. A joke may have no themes; submissions
-  accept up to ten theme entries. Themes may remain unused.
+- Themes use a many-to-many join table. A joke may have no themes; public
+  submissions accept up to ten distinct themes. Themes may remain unused.
 - Theme names allow 80 code points; deck names allow 100. Names use NFKC Unicode
   normalization, collapse runs of the Unicode `White_Space` property plus BOM
   (`U+FEFF`) to one ASCII space, and trim outer spaces. The unique lookup key is
@@ -133,6 +162,7 @@ node --test --test-isolation=none --test-name-pattern='readiness|migration failu
 node --test --test-isolation=none --test-name-pattern='migration startup|database constraints' test/database.test.ts
 node --test --test-isolation=none test/bootstrap.test.ts
 node --test --test-isolation=none --test-name-pattern='admin login|admin state changes' test/admin.test.ts
+node --test --test-isolation=none test/submission.test.ts
 ```
 
 Database tests automatically start a temporary PostgreSQL 18.7 process using the

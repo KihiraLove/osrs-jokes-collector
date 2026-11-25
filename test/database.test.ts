@@ -43,7 +43,7 @@ test('migration startup is concurrent-safe, idempotent and detects changed histo
   await Promise.all([migrate(pool), migrate(pool), migrate(pool)]);
   await migrate(pool);
   const history = await pool.query<{ version: string; checksum: string }>('SELECT version, checksum FROM schema_migrations ORDER BY version');
-  assert.deepEqual(history.rows.map(row => row.version), ['001_initial.sql', '002_admin_authentication.sql']);
+  assert.deepEqual(history.rows.map(row => row.version), ['001_initial.sql', '002_admin_authentication.sql', '003_public_submissions.sql']);
   const original = history.rows[0]!;
   await pool.query("UPDATE schema_migrations SET checksum = 'changed' WHERE version = $1", [original.version]);
   try {

@@ -12,8 +12,33 @@ h1 { color: #ffda67; font-size: 2rem; }
 p { font-size: 1rem; line-height: 1.6; }
 :focus-visible { outline: 0.2rem solid #ffda67; outline-offset: 0.2rem; }
 form { display: grid; gap: 0.75rem; margin-top: 1.5rem; }
-input, button { font: inherit; border-radius: 0.25rem; padding: 0.75rem; }
-input { color: #f5e8cd; background: #362a1d; border: 1px solid #9a8153; min-width: 0; }
+input, textarea, button { font: inherit; border-radius: 0.25rem; padding: 0.75rem; box-sizing: border-box; }
+input, textarea { color: #f5e8cd; background: #362a1d; border: 1px solid #9a8153; min-width: 0; }
 button { color: #282017; background: #ffda67; border: 1px solid #ffda67; cursor: pointer; }
 a { color: #ffda67; }
 .error { color: #ffb89b; }
+[hidden] { display: none !important; }
+textarea { width: 100%; resize: vertical; line-height: 1.5; }
+fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+legend { padding: 0; margin-bottom: 0.75rem; }
+.hint { color: #cdbd9f; font-size: 0.9rem; margin: 0; line-height: 1.5; }
+.success { border-left: 0.2rem solid #ffda67; padding-left: 1rem; }
+.visually-hidden, .joke-type input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.joke-type { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem; }
+.joke-type span { display: block; text-align: center; border: 1px solid #9a8153; border-radius: 0.25rem; padding: 0.75rem 0.25rem; cursor: pointer; }
+.joke-type input:checked + span { background: #ffda67; color: #282017; border-color: #ffda67; }
+.joke-type input:focus-visible + span { outline: 0.2rem solid #ffda67; outline-offset: 0.2rem; }
+.field, .themes { display: grid; gap: 0.75rem; }
+.themes { margin-top: 0.5rem; }
+.theme-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; }
+.theme-catalog summary { cursor: pointer; padding: 0.75rem 0; }
+.theme-options { max-height: 13rem; overflow-y: auto; border: 1px solid #9a8153; border-radius: 0.25rem; }
+.theme-options label { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; overflow-wrap: anywhere; cursor: pointer; }
+.theme-options input { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; accent-color: #ffda67; }
+.theme-options p { padding: 0.75rem; }
+.selected-themes { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; padding: 0; margin: 0.5rem 0 0; }
+.selected-themes li { max-width: 100%; }
+.remove-theme { padding: 0.5rem 0.75rem; background: #362a1d; color: #ffda67; border-color: #9a8153; overflow-wrap: anywhere; max-width: 100%; }
+#theme-feedback:empty { display: none; }
+button:disabled { opacity: 0.65; cursor: wait; }
+@media (max-width: 30rem) { main { margin: 2rem auto; padding: 0 1rem; } }

@@ -1,0 +1,13 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  font-size: 100%;
+  color: #f5e8cd;
+  background: #282017;
+}
+
+body { margin: 0; }
+main { max-width: 36rem; margin: 4rem auto; padding: 0 1.25rem; }
+h1 { color: #ffda67; font-size: 2rem; }
+p { font-size: 1rem; line-height: 1.6; }
+:focus-visible { outline: 0.2rem solid #ffda67; outline-offset: 0.2rem; }

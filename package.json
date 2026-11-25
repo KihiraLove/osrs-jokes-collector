@@ -1,0 +1,32 @@
+{
+  "name": "osrs-jokes-collector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Collect and curate joke decks for the OSRS Jokes RuneLite plugin",
+  "license": "BSD-2-Clause",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "node --watch src/server.ts",
+    "start": "node dist/server.js",
+    "migrate": "node src/db/migrate.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "test": "node --test --test-isolation=none",
+    "test:unit": "node --test --test-isolation=none test/normalization.test.ts test/app.test.ts",
+    "test:db": "node --test --test-isolation=none test/database.test.ts"
+  },
+  "dependencies": {
+    "fastify": "5.12.8",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "embedded-postgres": "18.7.0-beta.19",
+    "typescript": "6.0.3"
+  }
+}

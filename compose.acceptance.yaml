@@ -1,0 +1,10 @@
+# Disposable smoke-test ingress only. Never combine with the Traefik override.
+# The runtime image and all services/volumes/security settings come from compose.yaml.
+services:
+  app:
+    environment:
+      PUBLIC_ORIGIN: http://127.0.0.1:${COLLECTOR_PORT:?The harness allocates a loopback port}
+      ALLOW_INSECURE_LOCAL_ADMIN: "true"
+      TRUSTED_PROXY_CIDRS: ""
+    ports:
+      - "127.0.0.1:${COLLECTOR_PORT}:3000"

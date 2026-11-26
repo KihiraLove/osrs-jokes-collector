@@ -4,18 +4,22 @@ import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:net';
+import { verifyCollection, verifyCollectionSnapshot } from '../test/helpers/acceptance.ts';
 
 // This opt-in check owns only the project/volumes named by its random prefix.
-// It builds a local image and never pushes images or contacts GitHub.
+// It builds a local image or pulls an explicitly chosen published release.
+// It never pushes images, changes production data or contacts GitHub Actions.
 const root = fileURLToPath(new URL('../', import.meta.url));
 const project = `collector-check-${randomUUID().slice(0, 8)}`;
+const releaseImage = process.env.COLLECTOR_CHECK_IMAGE;
+if (releaseImage && !/^ghcr\.io\/kihiralove\/osrs-jokes-collector(?::v\d+\.\d+\.\d+|@sha256:[a-f0-9]{64})$/.test(releaseImage)) throw new Error('COLLECTOR_CHECK_IMAGE must name a published collector version or digest.');
 const environment = {
   ...process.env,
-  COLLECTOR_IMAGE: `osrs-jokes-collector:${project}`,
+  COLLECTOR_IMAGE: releaseImage ?? `osrs-jokes-collector:${project}`,
   COLLECTOR_PORT: '0',
 };
 const execute = promisify(execFile);
-const prefix = ['compose', '--project-name', project, '-f', 'compose.yaml', '-f', 'compose.local.yaml'];
+const prefix = ['compose', '--project-name', project, '-f', 'compose.yaml', '-f', 'compose.acceptance.yaml'];
 
 async function docker(arguments_, { input, timeout = 60_000 } = {}) {
   const pending = execute('docker', arguments_, { cwd: root, env: environment, encoding: 'buffer', maxBuffer: 64 * 1024 * 1024, timeout });
@@ -41,10 +45,6 @@ const fingerprint = async () => text(await compose(['exec', '-T', 'app', 'node',
 `]));
 const restoreSecrets = archive => compose(['run', '--rm', '--no-deps', '-T', '--entrypoint', 'tar', 'bootstrap', '-C', '/run/collector-secrets', '-xf', '-'], { input: archive });
 
-const deckId = randomUUID();
-const jokeId = randomUUID();
-const verifyData = async () => assert.equal(text(await sql(`SELECT d.id || ':' || j.id FROM decks d JOIN jokes j ON j.deck_id = d.id WHERE d.id = '${deckId}'`)), `${deckId}:${jokeId}`);
-
 async function localPort() {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -65,8 +65,8 @@ async function adminKeyFromLogs() {
 function sessionCookie(response) {
   const value = response.headers.getSetCookie().find(cookie => cookie.startsWith('osrs-jokes-admin-local='));
   assert.ok(value, 'Expected a local admin session cookie.');
-  assert.match(value, /HttpOnly/);
-  assert.match(value, /SameSite=Strict/);
+  assert.ok(value.includes('HttpOnly'), 'Expected an HttpOnly session cookie.');
+  assert.ok(value.includes('SameSite=Strict'), 'Expected a SameSite=Strict session cookie.');
   return value.split(';')[0];
 }
 function csrfField(body) {
@@ -95,8 +95,13 @@ let dockerAvailable = false;
 try {
   await docker(['info', '--format', '{{.ServerVersion}}']);
   dockerAvailable = true;
-  console.log('Building the local application image...');
-  await compose(['build', 'app'], { timeout: 600_000 });
+  if (releaseImage) {
+    console.log('Pulling the selected published release image...');
+    await docker(['pull', releaseImage], { timeout: 180_000 });
+  } else {
+    console.log('Building the local production application image...');
+    await docker(['build', '--tag', environment.COLLECTOR_IMAGE, '.'], { timeout: 600_000 });
+  }
   environment.COLLECTOR_PORT = String(await localPort());
   console.log('Starting an empty, isolated Compose project...');
   await up();
@@ -126,7 +131,11 @@ try {
     }
   `]);
   const originalFingerprint = await fingerprint();
-  await sql(`INSERT INTO decks (id, name, normalized_name) VALUES ('${deckId}', 'Compose check', 'compose check'); INSERT INTO jokes (id, kind, text, deck_id) VALUES ('${jokeId}', 'single', 'Persistence check', '${deckId}')`);
+  console.log('Checking the public submission, moderation, selection and export golden path...');
+  const snapshot = await verifyCollection(origin, initialAdminKey, async value => {
+    await sql(`INSERT INTO jokes (kind, text) SELECT 'single', '${value.replaceAll("'", "''")} pagination ' || i FROM generate_series(1, 26) i`);
+  });
+  const verifyData = () => verifyCollectionSnapshot(origin, authenticatedCookie, snapshot);
   await compose(['stop', 'app']);
   const dump = await compose(['exec', '-T', 'db', 'pg_dump', '-U', 'collector', '-d', 'collector', '--format=custom']);
   const archive = await compose(['run', '--rm', '--no-deps', '-T', '--entrypoint', 'tar', 'bootstrap', '-C', '/run/collector-secrets', '-cf', '-', '.']);
@@ -138,7 +147,7 @@ try {
   await verifyData();
   assert.ok(!text(await compose(['logs', '--no-color', '--no-log-prefix', 'app'])).includes('OSRS_JOKES_ADMIN_KEY='), 'Restart must not print the existing key.');
   const resumedAdmin = await fetch(`${origin}/admin`, { headers: { Cookie: authenticatedCookie } });
-  assert.match(await resumedAdmin.text(), /action="\/admin\/logout"/);
+  assert.ok((await resumedAdmin.text()).includes('action="/admin/logout"'), 'The authenticated session must survive container recreation.');
 
   for (const corruption of ['missing', 'corrupt']) {
     console.log(`Checking safe failure for ${corruption} credentials...`);
@@ -172,19 +181,20 @@ try {
   console.log('Checking restored admin login and operator key rotation...');
   assert.ok(!text(await compose(['logs', '--no-color', '--no-log-prefix', 'app'])).includes('OSRS_JOKES_ADMIN_KEY='), 'Restoring a credential must not replace/reprint it.');
   const restoredCookie = await adminLogin(origin, initialAdminKey);
+  await verifyCollectionSnapshot(origin, restoredCookie, snapshot);
   const rotation = text(await compose(['exec', '-T', 'app', 'node', 'dist/admin-key.js', 'rotate']));
   const rotatedKey = rotation.match(/^OSRS_JOKES_ADMIN_KEY=([a-f0-9]{64})$/m)?.[1];
   assert.ok(rotatedKey, 'Operator rotation must print the new admin key.');
   assert.ok(rotatedKey !== initialAdminKey, 'Rotation must replace the key.');
   const revoked = await fetch(`${origin}/admin`, { headers: { Cookie: restoredCookie } });
-  assert.match(await revoked.text(), /name="key"/);
+  assert.ok((await revoked.text()).includes('name="key"'), 'Key rotation must revoke the previous session.');
   const pending = await adminChallenge(origin);
   const rejected = await fetch(`${origin}/admin/login`, { method: 'POST', headers: {
     Origin: origin, Cookie: pending.cookie, 'Content-Type': 'application/x-www-form-urlencoded',
   }, body: new URLSearchParams({ key: initialAdminKey, csrf: pending.csrf }) });
   assert.equal(rejected.status, 401, 'The old admin key must stop working.');
   await adminLogin(origin, rotatedKey);
-  console.log('Compose startup, ownership, credentials, persistence, safe failures, backup/restore and admin lifecycle checks passed.');
+  console.log('Compose golden path, ownership, credentials, persistence, safe failures, backup/restore, exports and admin lifecycle checks passed.');
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;
@@ -194,6 +204,6 @@ try {
       console.error(`Could not remove test project ${project}: ${error.message}`);
       process.exitCode = 1;
     });
-    await docker(['image', 'rm', environment.COLLECTOR_IMAGE]).catch(() => {});
+    if (!releaseImage) await docker(['image', 'rm', environment.COLLECTOR_IMAGE]).catch(() => {});
   }
 }

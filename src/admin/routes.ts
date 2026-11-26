@@ -8,6 +8,7 @@ import { renderAdmin, renderAdminError, renderLogin } from '../views/admin.ts';
 import type { JokeRepository } from '../db/repository.ts';
 import { registerModeration } from './moderation.ts';
 import { registerDecks } from './decks.ts';
+import { registerExport } from './export.ts';
 import { ValidationError } from '../domain.ts';
 
 declare module 'fastify' {
@@ -120,6 +121,7 @@ export function registerAdmin(app: FastifyInstance, options: AdminOptions): void
     if (options.repository) {
       registerModeration(admin, options.repository);
       registerDecks(admin, options.repository);
+      registerExport(admin, options.repository);
     }
     if (options.routes) await options.routes(admin);
     admin.setNotFoundHandler((_request, reply) => reply.code(404).type('text/html').send(renderAdminError('Page not found.')));

@@ -15,6 +15,9 @@ COPY src ./src
 RUN pnpm build
 
 FROM node:24.22.3-bookworm-slim AS runtime
+LABEL org.opencontainers.image.source="https://github.com/KihiraLove/osrs-jokes-collector" \
+      org.opencontainers.image.licenses="BSD-2-Clause" \
+      org.opencontainers.image.title="OSRS Jokes Collector"
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
 COPY --from=production-dependencies /app/node_modules ./node_modules

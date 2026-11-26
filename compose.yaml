@@ -1,7 +1,7 @@
 name: osrs-jokes-collector
 
 x-application-image: &application-image
-  image: ${COLLECTOR_IMAGE:-ghcr.io/kihiralove/osrs-jokes-collector:latest}
+  image: ${COLLECTOR_IMAGE:-ghcr.io/kihiralove/osrs-jokes-collector:v0.1.0}
 
 services:
   bootstrap:

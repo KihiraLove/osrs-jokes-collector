@@ -62,8 +62,16 @@ downloads in `test/export.test.ts`:
 
 - [One populated deck](examples/one-deck.json).
 - [Multiple decks, including an empty deck](examples/decks.json).
+- [The same decks after a rename/reorder](examples/renamed-decks.json).
 
 They include both joke types, Unicode, quotes, backslashes, comment-like text,
 CRLF, tabs and embedded blank lines. They can be imported unchanged into the
-OSRS Jokes plugin; cross-repository verification with the actual Java importer
-is tracked in [issue #9](https://github.com/KihiraLove/osrs-jokes-collector/issues/9).
+OSRS Jokes plugin. The [compatibility verification record](plugin-compatibility.md)
+describes fixture regeneration, the actual Java importer tests, the verified
+source revisions and the separate manual in-game checklist for issue #9.
+
+To use a download, back up `.runelite/osrs-jokes/decks.json`, replace it with the
+downloaded file unchanged, and press **Reload decks** in the plugin's sidebar.
+The file replaces the complete local collection. Collector exports do not merge
+with decks missing from the download. Keep deck IDs stable when re-exporting;
+renaming a deck preserves the plugin's selection preference.

@@ -13,12 +13,7 @@ import { createPool, databaseLifecycle } from '../src/db/database.ts';
 import { JokeRepository } from '../src/db/repository.ts';
 import { startTestDatabase } from './helpers/database.ts';
 import type { TestDatabase } from './helpers/database.ts';
-
-const emptyId = '10000000-0000-4000-8000-000000000001';
-const fullId = '10000000-0000-4000-8000-000000000002';
-const firstId = '20000000-0000-4000-8000-000000000003';
-const secondId = '20000000-0000-4000-8000-000000000001';
-const thirdId = '20000000-0000-4000-8000-000000000002';
+import { emptyId, firstId, fullId, secondId, seedExportExamples, thirdId } from './helpers/export-fixtures.ts';
 
 interface ExportDocument { decks: { id: string; name: string; jokes: string[] }[] }
 
@@ -64,26 +59,7 @@ describe('admin deck export', () => {
     const csrf = csrfFrom((await get('/admin/jokes')).body);
     const post = (fields: Record<string, unknown> = {}, url = '/admin/export') => app.inject({ method: 'POST', url, headers: { origin, cookie }, payload: { csrf, ...fields } });
 
-    async function seed() {
-      for (const [id, name] of [[emptyId, 'Empty deck'], [fullId, 'Gielinor "jokes" \\ 🦀']] as const) {
-        const deck = await repository.createDeck(name);
-        await pool.query('UPDATE decks SET id = $1 WHERE id = $2', [id, deck.id]);
-      }
-      await pool.query(`INSERT INTO jokes (id, kind, text, punchline, created_at, deck_id) VALUES
-        ($1, 'single', $2, NULL, '2026-01-01T00:00:00.000001Z', $9),
-        ($3, 'two_part', $4, $5, '2026-01-01T00:00:00.000002Z', $9),
-        ($6, 'single', $7, NULL, '2026-01-01T00:00:00.000002Z', $9),
-        ($8, 'single', 'Unassigned private', NULL, '2026-01-01T00:00:00.000003Z', NULL)`, [
-        firstId, 'The Wise Old Man said "bank it". Path: C:\\Gielinor\\bank.',
-        secondId, 'Why did the crab cross the shore?', 'To say 你好, café! 🦀\nThen scuttle away.',
-        thirdId, 'Keep // this and /* that */ as text.\r\nNext line\twith a tab.\n\nA blank line stays.', randomUUID(), fullId,
-      ]);
-      await repository.setThemes(firstId, ['PvM']);
-      await repository.setThemes(secondId, ['Skilling']);
-      const otherJoke = await repository.submit({ kind: 'single', text: 'Only in the other deck' });
-      const other = await repository.createDeckWithJokes('Zulu deck', [otherJoke.id]);
-      return { other, otherJoke };
-    }
+    const seed = () => seedExportExamples(pool, repository);
     return { pool, repository, app, origin, cookie, csrf, key, get, post, seed };
   }
 
@@ -133,6 +109,20 @@ describe('admin deck export', () => {
     const response = await f.post({ scope: 'selected', deckIds: fullId, theme: theme.id, before: 'invalid', expectedIds: [firstId], deck: 'unassigned' }, `/admin/export?theme=${theme.id}`);
     assert.equal(response.body, oneExample);
     assert.deepEqual((await f.get('/admin/selection')).json().ids, [firstId]);
+  });
+
+  test('renamed compatibility fixture retains deck IDs, exact text and selection identity after reordering', async context => {
+    const f = await fixture(context);
+    await f.seed();
+    assert.equal((await f.post({ name: 'A renamed deck' }, `/admin/decks/${fullId}/rename`)).statusCode, 303);
+    const response = await f.post({ scope: 'selected', deckIds: [emptyId, fullId] });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body, await readFile(new URL('../docs/examples/renamed-decks.json', import.meta.url), 'utf8'));
+    await assertSchema(response.json());
+    const decks = response.json<ExportDocument>().decks;
+    assert.deepEqual(decks.map(deck => deck.id), [fullId, emptyId]);
+    assert.equal(decks[0]!.name, 'A renamed deck');
+    assert.deepEqual(decks[0]!.jokes, JSON.parse(oneExample).decks[0].jokes);
   });
 
   test('selection errors never download partial data and the refreshed form retains surviving selected decks', async context => {

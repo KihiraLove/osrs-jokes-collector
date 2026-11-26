@@ -10,6 +10,8 @@ and one application Docker image with automatic database credentials. Named deck
 and bulk assignment are available, with [plugin-compatible JSON downloads](docs/export.md).
 Release-image publication is tracked in the
 [MVP plan](https://github.com/KihiraLove/osrs-jokes-collector/issues/1).
+See the [plugin compatibility record](docs/plugin-compatibility.md) for
+reproducible fixtures and the manual import checklist.
 
 ## Start with Docker Compose
 

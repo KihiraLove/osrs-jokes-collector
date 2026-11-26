@@ -5,8 +5,9 @@ Compose installed. The application image contains the compiled website/backend,
 migrations, credential bootstrap/rotation commands and readiness check.
 PostgreSQL uses the official `postgres:18.7-bookworm` image. The manually
 triggered [release workflow](releases.md) publishes versioned application images
-after the owner validates locally. The first publication/public visibility and
-live deployment checks must be completed before a clean host can use GHCR.
+after the owner validates locally. See the [v0.1.0 record](release-records/v0.1.0.md)
+for its published digest and the [acceptance runbook](acceptance.md) for pending
+clean-host/live deployment checks.
 
 ## Local build
 
@@ -201,6 +202,11 @@ login, first-start key output, session persistence and operator key rotation.
 It deletes only its own test project/volumes/image. No development images are
 published and no validation runs in GitHub Actions. The owner runs the complete
 `pnpm test` suite manually.
+
+It now also runs the full HTTP curation/export/deletion golden path and checks
+the same collection export after recreation and restore. Set
+`COLLECTOR_CHECK_IMAGE` to a published version/digest to pull/test that exact
+runtime image instead of building, as described in [acceptance.md](acceptance.md).
 
 References: [Compose startup dependencies](https://docs.docker.com/compose/how-tos/startup-order/),
 [official PostgreSQL image](https://hub.docker.com/_/postgres),

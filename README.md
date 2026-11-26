@@ -10,6 +10,9 @@ and one application Docker image with automatic database credentials. Named deck
 and bulk assignment are available, with [plugin-compatible JSON downloads](docs/export.md).
 The [release workflow](docs/releases.md) publishes versioned images after local
 validation; it never publishes development images or runs GitHub validation jobs.
+[`v0.1.0` is published](docs/release-records/v0.1.0.md), with verified anonymous
+registry access. See the [acceptance runbook](docs/acceptance.md) for local and
+deployment checks still to record.
 See the [plugin compatibility record](docs/plugin-compatibility.md) for
 reproducible fixtures and the manual import checklist.
 
@@ -38,8 +41,8 @@ Look for `OSRS_JOKES_ADMIN_KEY=...`. It is printed once after database
 initialization; restarts do not print or replace it. No username is required.
 See [admin access](docs/admin.md) for key recovery/rotation and session behavior.
 See [deployment and backup instructions](docs/deployment.md) for Traefik,
-settings, credential recovery, upgrades and restore commands. Use the local
-build until the first release is published and its GHCR package made public.
+settings, credential recovery, upgrades and restore commands. For production,
+pin the published image digest recorded with its release.
 Production routing is configurable through the
 [Traefik Docker labels](compose.traefik.yaml); see
 [Cloudflare/proxy setup](docs/proxy.md) and the [release procedure](docs/releases.md).
@@ -173,6 +176,7 @@ node --test --test-isolation=none test/moderation.test.ts
 node --test --test-isolation=none test/decks.test.ts
 node --test --test-isolation=none test/export.test.ts
 node --test --test-isolation=none test/release.test.ts test/proxy.test.ts
+pnpm test:acceptance
 ```
 
 Database tests automatically start a temporary PostgreSQL 18.7 process using the

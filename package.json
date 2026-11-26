@@ -20,6 +20,7 @@
     "test:unit": "node --test --test-isolation=none test/normalization.test.ts test/app.test.ts",
     "test:db": "node --test --test-isolation=none test/database.test.ts",
     "test:compose": "node scripts/check-compose.mjs",
+    "test:acceptance": "node --test --test-isolation=none test/acceptance.test.ts",
     "fixtures:check": "node scripts/export-fixtures.mjs --check",
     "fixtures:write": "node scripts/export-fixtures.mjs --write"
   },

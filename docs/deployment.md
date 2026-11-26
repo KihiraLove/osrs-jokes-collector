@@ -3,8 +3,10 @@
 Run these commands from the repository root with Docker Engine and Docker
 Compose installed. The application image contains the compiled website/backend,
 migrations, credential bootstrap/rotation commands and readiness check.
-PostgreSQL uses the official `postgres:18.7-bookworm` image. Release-image publication is tracked in issue #10;
-this issue prepares the image and stack without publishing anything.
+PostgreSQL uses the official `postgres:18.7-bookworm` image. The manually
+triggered [release workflow](releases.md) publishes versioned application images
+after the owner validates locally. The first publication/public visibility and
+live deployment checks must be completed before a clean host can use GHCR.
 
 ## Local build
 
@@ -21,14 +23,18 @@ the database has no published port.
 
 ## Traefik and Cloudflare
 
-Once a release has been published, set `COLLECTOR_IMAGE` to its version tag or
-digest and define the production helper instead. Replace `vX.Y.Z` with the
-published version before running:
+Once a release is publicly pullable, set `COLLECTOR_IMAGE` to the digest recorded
+in its workflow summary and define the production helper. Set the hostname and
+trust list for the actual infrastructure; the image digest below is a placeholder:
 
 ```sh
-export COLLECTOR_IMAGE=ghcr.io/kihiralove/osrs-jokes-collector:vX.Y.Z
+export COLLECTOR_IMAGE=ghcr.io/kihiralove/osrs-jokes-collector@sha256:REPLACE_WITH_RUN_DIGEST
 export COLLECTOR_HOSTNAME=jokes.example.com
+# Set the actual Traefik IP plus current Cloudflare ranges using docs/proxy.md:
+export TRUSTED_PROXY_CIDRS=REPLACE_WITH_REVIEWED_PROXY_CIDRS
 dc() { docker compose -f compose.yaml -f compose.traefik.yaml "$@"; }
+dc config --quiet
+dc pull
 dc up --detach --wait app
 ```
 
@@ -36,27 +42,37 @@ For a locally built image on the Docker host, build with the local override firs
 and set `COLLECTOR_IMAGE=osrs-jokes-collector:local` before using the production
 helper. This also lets you verify the proxy wiring before release publication.
 
-Traefik must already have the external network `traefik`, the `websecure`
-entrypoint, and a valid certificate for the public hostname. `TRAEFIK_NETWORK`
-overrides the network name. Only the app joins this proxy network; the database
-stays on the internal backend network. The base stack exposes no host ports;
-the localhost override is used only for development.
+Routing is configured with the Docker labels in `compose.traefik.yaml`:
+hostname, entrypoint, TLS, selected Docker network and app port 3000. The
+hostname/network/entrypoint substitutions are operator conveniences; labels can
+also be maintained in an infrastructure override. Keep `PUBLIC_ORIGIN` aligned
+with the Host rule when editing it directly. The external network and HTTPS
+certificate must already exist in Traefik. Only the app joins the proxy network;
+the production stack exposes no host ports and keeps the database private.
 
-Cloudflare should proxy the DNS record to the Docker host and use Full (strict)
-TLS with Traefik's origin certificate. Detailed Cloudflare caching rules,
-forwarded-header trust and release publication are tracked in issue #10. The
-app keeps forwarded headers untrusted unless `TRUSTED_PROXY_CIDRS` is configured.
+Follow [proxy configuration](proxy.md) for Cloudflare Full (strict), the complete
+trusted forwarding chain, origin firewall/authentication, cache bypass and live
+checks. The Traefik override requires explicit proxy trust; outside it,
+forwarded headers stay untrusted by default. Do not combine the production and
+local overrides.
 
 ## Settings and stored data
 
 | Setting | Default | Use |
 | --- | --- | --- |
-| `COLLECTOR_IMAGE` | GHCR `latest` in the base stack; `osrs-jokes-collector:local` in the local override | Release version/digest or local image |
+| `COLLECTOR_IMAGE` | GHCR `v0.1.0` in the base stack; `osrs-jokes-collector:local` locally | Use a publicly published release digest in production |
 | `COLLECTOR_HOSTNAME` | Required only by the Traefik override | Public hostname |
 | `TRAEFIK_NETWORK` | `traefik` | Existing proxy network |
+| `TRAEFIK_ENTRYPOINT` | `websecure` | Existing HTTPS entrypoint, substituted into the router label |
 | `COLLECTOR_PORT` | `3000` | Local override's localhost port |
 | `COMPOSE_PROJECT_NAME` | `osrs-jokes-collector` | Optional isolated deployment name |
-| `TRUSTED_PROXY_CIDRS` | Empty (forwarding headers ignored) | Optional trusted Traefik/Cloudflare proxy addresses/CIDRs |
+| `TRUSTED_PROXY_CIDRS` | Required by Traefik override; empty elsewhere | Actual stable Traefik address plus reviewed Cloudflare IPv4/IPv6 CIDRs |
+
+`PUBLIC_ORIGIN` is derived as `https://${COLLECTOR_HOSTNAME}`; only override it
+when maintaining matching Host labels directly. Non-secret infrastructure
+settings can live in your deployment's Compose environment; a password/token
+`.env` is never required. First publication uses GitHub's built-in workflow
+token; [public package setup](releases.md) removes registry login from deployment.
 
 Compose supplies internal database host/user/name and password-file paths.
 Operators do not supply passwords, admin keys or session tokens as environment
@@ -155,8 +171,10 @@ Do not delete volumes or invent a replacement password to resolve this error.
 ## Upgrade and rollback
 
 1. Create a matching database/secret backup and record the current image digest.
-2. Set `COLLECTOR_IMAGE` to the desired release and run `dc pull`.
-3. Run `dc up --detach --wait app`, then check readiness and logs.
+2. Set `COLLECTOR_IMAGE` to the desired release digest and run `dc pull`.
+3. Run `dc up --detach --wait app`, then check readiness, logs and the
+   [public proxy flow](proxy.md#live-verification). Purge CSS/JS caches or wait
+   their five-minute lifetime when upgrading unversioned assets.
 4. If the upgrade fails, stop the app and inspect its startup message. An
    authentication failure requires the matching secrets; a changed/unknown
    migration history requires the matching application release.

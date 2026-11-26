@@ -34,11 +34,11 @@ export function createApp(database: DatabaseLifecycle, logger: FastifyServerOpti
   });
   app.addHook('onClose', () => database.close());
   registerSubmissions(app, submissions);
-  app.get('/styles.css', async (_request, reply) => reply.type('text/css; charset=utf-8').send(styles));
-  app.get('/submission.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(submissionScript));
-  app.get('/theme-picker.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(themePickerScript));
-  app.get('/theme-editor.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(themeEditorScript));
-  app.get('/admin-selection.js', async (_request, reply) => reply.type('application/javascript; charset=utf-8').send(selectionScript));
+  app.get('/styles.css', async (_request, reply) => reply.header('Cache-Control', 'public, max-age=300').type('text/css; charset=utf-8').send(styles));
+  app.get('/submission.js', async (_request, reply) => reply.header('Cache-Control', 'public, max-age=300').type('application/javascript; charset=utf-8').send(submissionScript));
+  app.get('/theme-picker.js', async (_request, reply) => reply.header('Cache-Control', 'public, max-age=300').type('application/javascript; charset=utf-8').send(themePickerScript));
+  app.get('/theme-editor.js', async (_request, reply) => reply.header('Cache-Control', 'public, max-age=300').type('application/javascript; charset=utf-8').send(themeEditorScript));
+  app.get('/admin-selection.js', async (_request, reply) => reply.header('Cache-Control', 'public, max-age=300').type('application/javascript; charset=utf-8').send(selectionScript));
   app.get('/health/live', async () => ({ status: 'ok' }));
   app.get('/health/ready', async (_request, reply) => {
     reply.header('Cache-Control', 'no-store');

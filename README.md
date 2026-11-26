@@ -8,8 +8,8 @@ The website supports public joke submissions and themes, key-only admin
 authentication, admin browsing/theme moderation, transactional PostgreSQL storage
 and one application Docker image with automatic database credentials. Named decks
 and bulk assignment are available, with [plugin-compatible JSON downloads](docs/export.md).
-Release-image publication is tracked in the
-[MVP plan](https://github.com/KihiraLove/osrs-jokes-collector/issues/1).
+The [release workflow](docs/releases.md) publishes versioned images after local
+validation; it never publishes development images or runs GitHub validation jobs.
 See the [plugin compatibility record](docs/plugin-compatibility.md) for
 reproducible fixtures and the manual import checklist.
 
@@ -38,8 +38,11 @@ Look for `OSRS_JOKES_ADMIN_KEY=...`. It is printed once after database
 initialization; restarts do not print or replace it. No username is required.
 See [admin access](docs/admin.md) for key recovery/rotation and session behavior.
 See [deployment and backup instructions](docs/deployment.md) for Traefik,
-settings, credential recovery, upgrades and restore commands. Release images
-will be published in issue #10; use the local build until then.
+settings, credential recovery, upgrades and restore commands. Use the local
+build until the first release is published and its GHCR package made public.
+Production routing is configurable through the
+[Traefik Docker labels](compose.traefik.yaml); see
+[Cloudflare/proxy setup](docs/proxy.md) and the [release procedure](docs/releases.md).
 
 ## Local development
 
@@ -169,6 +172,7 @@ node --test --test-isolation=none test/submission.test.ts
 node --test --test-isolation=none test/moderation.test.ts
 node --test --test-isolation=none test/decks.test.ts
 node --test --test-isolation=none test/export.test.ts
+node --test --test-isolation=none test/release.test.ts test/proxy.test.ts
 ```
 
 Database tests automatically start a temporary PostgreSQL 18.7 process using the

@@ -160,7 +160,7 @@ proxy IPs/CIDRs. Forwarding headers are ignored by default. Configure the actual
 Traefik/Cloudflare chain before enabling visitor-specific limits through those
 proxies; without it, clients share the proxy address's login limit. Boolean
 blanket trust and `/0` ranges are rejected. Deployment-specific proxy/Cloudflare
-configuration is tracked in issue #10.
+configuration and live verification are described in [proxy.md](proxy.md).
 
 ## Backup and extension
 

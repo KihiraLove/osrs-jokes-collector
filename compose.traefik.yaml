@@ -1,13 +1,18 @@
 services:
   app:
+    environment:
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:?Set TRUSTED_PROXY_CIDRS to the actual Traefik address and current Cloudflare CIDRs}
     networks: [proxy]
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${TRAEFIK_NETWORK:-traefik}
       traefik.http.routers.osrs-jokes-collector.rule: Host(`${COLLECTOR_HOSTNAME:?Set COLLECTOR_HOSTNAME to the public hostname}`)
-      traefik.http.routers.osrs-jokes-collector.entrypoints: websecure
+      traefik.http.routers.osrs-jokes-collector.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
       traefik.http.routers.osrs-jokes-collector.tls: "true"
+      traefik.http.routers.osrs-jokes-collector.service: osrs-jokes-collector
+      traefik.http.routers.osrs-jokes-collector.middlewares: osrs-jokes-collector-headers
       traefik.http.services.osrs-jokes-collector.loadbalancer.server.port: "3000"
+      traefik.http.middlewares.osrs-jokes-collector-headers.headers.stsseconds: "31536000"
 
 networks:
   proxy:

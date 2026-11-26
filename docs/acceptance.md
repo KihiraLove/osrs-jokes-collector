@@ -125,8 +125,10 @@ Use a disposable local stack, not a live collection. Check at desktop width and
 
 Earlier UI checks in collector PRs #17/#18 exercised cross-theme/page selection,
 create/move/unassign, keyboard focus, native export-form errors and 320px layout.
-Record the final release's browser result separately; API tests alone do not
-establish selector accessibility or browser download behavior.
+The [final local browser record](release-records/v0.1.0-browser.md) documents
+the pass on merged PR #21, including its script-disabled/browser-download
+capture limits. API tests alone do not establish selector accessibility or
+browser download behavior.
 
 ## Short release runbook
 
@@ -149,4 +151,7 @@ establish selector accessibility or browser download behavior.
 Plugin UI/in-game confirmation is owner-managed and deferred in issue #9. The
 actual codec fixture hashes/revisions are recorded in
 [plugin-compatibility.md](plugin-compatibility.md); no RuneScape input is automated.
-Issues #11 and #1 stay open until the remaining owner acceptance results are recorded.
+The owner has confirmed the full suite and published-image Compose check. Local
+browser acceptance is recorded above. Live proxy verification remains deferred
+in #10 until deployment; #1 also retains that gate and the owner-managed plugin
+work in #9. Do not treat local acceptance as completion of those separate gates.

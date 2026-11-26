@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OSRS Jokes deck export",
+  "description": "Collector download format accepted by the OSRS Jokes plugin. Deck IDs must also be unique across the document.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decks"],
+  "properties": {
+    "decks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "jokes"],
+        "properties": {
+          "id": { "type": "string", "pattern": "\\S" },
+          "name": { "type": "string", "pattern": "\\S" },
+          "jokes": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

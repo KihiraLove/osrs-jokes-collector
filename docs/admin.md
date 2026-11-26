@@ -106,6 +106,14 @@ they cannot silently disappear from a bulk action; use **Remove deleted
 selections**, then review/retry, or clear the selection. Actions also reject an
 outdated selection from another tab. Failed actions retain the saved selection.
 
+## Export decks
+
+Open **Export**, check one or more decks and choose **Download selected decks**,
+or choose **Download all decks**. The JSON download includes whole decks,
+independent of joke selection and theme filters, and preserves immutable export
+IDs. Empty decks are valid; unassigned jokes are omitted. Downloads do not clear
+the joke selection. See the [export contract, schema and examples](export.md).
+
 ## Sessions and request protection
 
 - Authenticated sessions expire after eight hours. The browser holds an opaque

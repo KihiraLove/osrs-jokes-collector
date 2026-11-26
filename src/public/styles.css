@@ -74,3 +74,5 @@ select { appearance: none; width: 100%; padding-right: 2.5rem; }
 .deck-list li { border-bottom: 1px solid #796440; padding: 1rem 0; overflow-wrap: anywhere; }
 .deck-list code, .admin-main code { overflow-wrap: anywhere; }
 #selection-error:empty { display: none; }
+.export-decks label { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 0; overflow-wrap: anywhere; cursor: pointer; }
+.export-decks input { width: 1.15rem; height: 1.15rem; padding: 0; flex-shrink: 0; accent-color: #ffda67; }

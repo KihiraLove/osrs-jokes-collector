@@ -64,3 +64,13 @@ select { appearance: none; width: 100%; padding-right: 2.5rem; }
 .theme-usage a { flex-shrink: 0; }
 .pagination { margin: 1.5rem 0; justify-content: space-between; }
 @media (max-width: 40rem) { .filters { grid-template-columns: 1fr; } .joke-card { padding: 1rem; } }
+#selection-panel { border: 1px solid #796440; border-radius: 0.25rem; padding: 1rem; margin: 1rem 0; }
+#selection-panel h2 { margin-top: 0; font-size: 1.15rem; }
+.selection-controls { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
+#assignment-form { max-width: 32rem; }
+.joke-select { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.joke-select input { width: 1.15rem; height: 1.15rem; padding: 0; accent-color: #ffda67; }
+.deck-list { list-style: none; padding: 0; }
+.deck-list li { border-bottom: 1px solid #796440; padding: 1rem 0; overflow-wrap: anywhere; }
+.deck-list code, .admin-main code { overflow-wrap: anywhere; }
+#selection-error:empty { display: none; }

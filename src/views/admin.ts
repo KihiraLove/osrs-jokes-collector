@@ -1,18 +1,19 @@
 import { escapeHtml } from './html.ts';
 export { escapeHtml } from './html.ts';
 
-function page(content: string, wide = false, editor = false): string {
+function page(content: string, wide = false, script = ''): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Admin · OSRS Jokes</title><link rel="stylesheet" href="/styles.css">${editor ? '<script type="module" src="/theme-editor.js"></script>' : ''}</head>
+<title>Admin · OSRS Jokes</title><link rel="stylesheet" href="/styles.css">${script ? `<script type="module" src="/${script}.js"></script>` : ''}</head>
 <body><main${wide ? ' class="admin-main"' : ''}><h1>OSRS Jokes Admin</h1>${content}</main></body></html>`;
 }
 
-export function renderAdminPage(csrf: string, content: string, active: 'jokes' | 'themes' = 'jokes', editor = false): string {
+export function renderAdminPage(csrf: string, content: string, active: 'jokes' | 'themes' | 'decks' = 'jokes', script: '' | 'theme-editor' | 'admin-selection' = ''): string {
   return page(`<div class="admin-toolbar"><nav aria-label="Admin">
 <a href="/admin/jokes"${active === 'jokes' ? ' aria-current="page"' : ''}>Jokes</a>
-<a href="/admin/themes"${active === 'themes' ? ' aria-current="page"' : ''}>Themes</a></nav>
-<form class="logout" method="post" action="/admin/logout"><input type="hidden" name="csrf" value="${escapeHtml(csrf)}"><button class="secondary" type="submit">Log out</button></form></div>${content}`, true, editor);
+<a href="/admin/themes"${active === 'themes' ? ' aria-current="page"' : ''}>Themes</a>
+<a href="/admin/decks"${active === 'decks' ? ' aria-current="page"' : ''}>Decks</a></nav>
+<form class="logout" method="post" action="/admin/logout"><input type="hidden" name="csrf" value="${escapeHtml(csrf)}"><button class="secondary" type="submit">Log out</button></form></div>${content}`, true, script);
 }
 
 export function renderLogin(csrf: string, message = ''): string {

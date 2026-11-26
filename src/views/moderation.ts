@@ -6,16 +6,9 @@ import type { ThemeDraft } from '../theme-input.ts';
 import { renderAdminPage } from './admin.ts';
 import { escapeHtml } from './html.ts';
 import { renderThemePicker } from './theme-picker.ts';
-
-function hidden(name: string, value: string): string {
-  return `<input type="hidden" name="${name}" value="${escapeHtml(value)}">`;
-}
-function contextFields(state: ListingState): string {
-  return hidden('theme', state.theme) + hidden('deck', state.deck) + hidden('before', state.before);
-}
-function feedback(message: string, error = false): string {
-  return message ? `<p class="${error ? 'error' : 'success'}"${error ? ' id="form-error" tabindex="-1" role="alert"' : ' role="status"'}>${escapeHtml(message)}</p>` : '';
-}
+import { contextFields, feedback, hidden } from './admin-forms.ts';
+import { renderSelection } from './decks.ts';
+import type { SelectionControls } from './decks.ts';
 
 function jokeDetails(joke: Joke): string {
   const date = joke.createdAt.slice(0, 19).replace('T', ' ') + ' UTC';
@@ -26,16 +19,17 @@ ${joke.punchline !== null ? `<h3>Punchline</h3><p class="joke-text">${escapeHtml
 <p class="joke-themes">Themes: ${joke.themes.length ? joke.themes.map(theme => `<span>${escapeHtml(theme.name)}</span>`).join(', ') : 'No theme'}</p>`;
 }
 
-export function renderJokes(csrf: string, jokes: Joke[], themes: ThemeUsage[], state: ListingState, hasMore: boolean, message = ''): string {
+export function renderJokes(csrf: string, jokes: Joke[], themes: ThemeUsage[], state: ListingState, hasMore: boolean, controls: SelectionControls): string {
   const options = [['all', 'All themes'], ['none', 'No theme'], ...themes.map(theme => [theme.id, `${theme.name} (${theme.jokeCount})`])];
   const last = jokes.at(-1);
-  return renderAdminPage(csrf, `${feedback(message)}<h2>Collected jokes</h2>
+  return renderAdminPage(csrf, `${feedback(controls.message ?? '', controls.error)}<h2>Collected jokes</h2>
 <form class="filters" method="get" action="/admin/jokes">
 <div class="field"><label for="filter-theme">Theme</label><div class="select-wrap"><select id="filter-theme" name="theme">${options.map(([value, label]) => `<option value="${escapeHtml(value!)}"${state.theme === value ? ' selected' : ''}>${escapeHtml(label!)}</option>`).join('')}</select></div></div>
-<div class="field"><label for="filter-deck">Deck</label><div class="select-wrap"><select id="filter-deck" name="deck"><option value="all"${state.deck === 'all' ? ' selected' : ''}>All decks</option><option value="unassigned"${state.deck === 'unassigned' ? ' selected' : ''}>Unassigned deck</option></select></div></div>
+<div class="field"><label for="filter-deck">Deck</label><div class="select-wrap"><select id="filter-deck" name="deck"><option value="all"${state.deck === 'all' ? ' selected' : ''}>All decks</option><option value="unassigned"${state.deck === 'unassigned' ? ' selected' : ''}>Unassigned deck</option>${controls.decks.map(deck => `<option value="${deck.id}"${state.deck === deck.id ? ' selected' : ''}>${escapeHtml(deck.name)} (${deck.jokeCount})</option>`).join('')}</select></div></div>
 <button type="submit">Apply filters</button></form>
-${jokes.length ? jokes.map(joke => `<article class="joke-card" id="joke-${joke.id}" data-joke-id="${joke.id}">${jokeDetails(joke)}<div class="actions"><a href="${escapeHtml(listingUrl(state, `/admin/jokes/${joke.id}/themes`))}">Edit themes</a><a href="${escapeHtml(listingUrl(state, `/admin/jokes/${joke.id}/delete`))}">Delete joke</a></div></article>`).join('') : `<p role="status">${state.theme === 'all' && state.deck === 'all' && !state.before ? 'No jokes have been collected yet.' : 'No jokes match this page and its filters.'}</p>`}
-<nav class="pagination" aria-label="Joke pages">${state.before ? `<a href="${escapeHtml(listingUrl({ ...state, before: '' }))}">Newest page</a>` : ''}${hasMore && last ? `<a rel="next" href="${escapeHtml(listingUrl({ ...state, before: encodeCursor(last) }))}">Older jokes</a>` : ''}</nav>`);
+${renderSelection(csrf, jokes.map(joke => joke.id), state, controls)}
+${jokes.length ? jokes.map(joke => `<article class="joke-card" id="joke-${joke.id}" data-joke-id="${joke.id}"><label class="joke-select"><input type="checkbox" form="selection-form" name="selectedIds" value="${joke.id}"${controls.selection.ids.includes(joke.id) ? ' checked' : ''}>Select joke</label>${jokeDetails(joke)}<div class="actions"><a href="${escapeHtml(listingUrl(state, `/admin/jokes/${joke.id}/themes`))}">Edit themes</a><a href="${escapeHtml(listingUrl(state, `/admin/jokes/${joke.id}/delete`))}">Delete joke</a></div></article>`).join('') : `<p role="status">${state.theme === 'all' && state.deck === 'all' && !state.before ? 'No jokes have been collected yet.' : 'No jokes match this page and its filters.'}</p>`}
+<nav class="pagination" aria-label="Joke pages">${state.before ? `<a href="${escapeHtml(listingUrl({ ...state, before: '' }))}">Newest page</a>` : ''}${hasMore && last ? `<a rel="next" href="${escapeHtml(listingUrl({ ...state, before: encodeCursor(last) }))}">Older jokes</a>` : ''}</nav>`, 'jokes', 'admin-selection');
 }
 
 export function renderThemes(csrf: string, themes: ThemeUsage[], message = ''): string {
@@ -47,7 +41,7 @@ export function renderThemeEditor(csrf: string, joke: Joke, themes: Theme[], sta
   return renderAdminPage(csrf, `<h2>Edit joke themes</h2><article class="joke-card">${jokeDetails(joke)}</article>${feedback(message, true)}
 <form id="theme-form" method="post" action="/admin/jokes/${joke.id}/themes" data-max-themes="${MAX_THEMES}">${hidden('csrf', csrf)}${contextFields(state)}
 ${renderThemePicker(themes, draft)}<p class="hint">Remove every selection to leave this joke without a theme.</p>
-<button id="save-themes" type="submit">Save themes</button><a href="${escapeHtml(listingUrl(state))}">Cancel</a></form>`, 'jokes', true);
+<button id="save-themes" type="submit">Save themes</button><a href="${escapeHtml(listingUrl(state))}">Cancel</a></form>`, 'jokes', 'theme-editor');
 }
 
 export function renderJokeDeletion(csrf: string, joke: Joke, state: ListingState, message = ''): string {

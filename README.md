@@ -6,8 +6,8 @@ The interface uses a simple OSRS brown/yellow palette.
 
 The website supports public joke submissions and themes, key-only admin
 authentication, admin browsing/theme moderation, transactional PostgreSQL storage
-and one application Docker image with automatic database credentials. Deck controls, JSON
-download and release-image publication are tracked separately in the
+and one application Docker image with automatic database credentials. Named decks
+and bulk assignment are available; JSON download and release-image publication are tracked in the
 [MVP plan](https://github.com/KihiraLove/osrs-jokes-collector/issues/1).
 
 ## Start with Docker Compose
@@ -164,6 +164,7 @@ node --test --test-isolation=none test/bootstrap.test.ts
 node --test --test-isolation=none --test-name-pattern='admin login|admin state changes' test/admin.test.ts
 node --test --test-isolation=none test/submission.test.ts
 node --test --test-isolation=none test/moderation.test.ts
+node --test --test-isolation=none test/decks.test.ts
 ```
 
 Database tests automatically start a temporary PostgreSQL 18.7 process using the

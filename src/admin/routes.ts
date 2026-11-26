@@ -7,6 +7,8 @@ import type { AdminSession, AdminStore } from './store.ts';
 import { renderAdmin, renderAdminError, renderLogin } from '../views/admin.ts';
 import type { JokeRepository } from '../db/repository.ts';
 import { registerModeration } from './moderation.ts';
+import { registerDecks } from './decks.ts';
+import { ValidationError } from '../domain.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -49,7 +51,7 @@ export function registerAdmin(app: FastifyInstance, options: AdminOptions): void
 
     admin.addHook('onRequest', async (request, reply) => {
       reply.header('Cache-Control', 'private, no-store').header('Pragma', 'no-cache').header('Vary', 'Cookie');
-      reply.header('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+      reply.header('Content-Security-Policy', "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
       // Native form POSTs need a usable same-origin Origin/Referer for CSRF.
       reply.header('X-Content-Type-Options', 'nosniff').header('Referrer-Policy', 'same-origin');
       if (request.method === 'POST' && request.routeOptions.url === '/admin/login') {
@@ -78,6 +80,7 @@ export function registerAdmin(app: FastifyInstance, options: AdminOptions): void
     });
 
     admin.setErrorHandler((error, request, reply) => {
+      if (error instanceof ValidationError) return reply.code(400).type('text/html').send(renderAdminError(error.message));
       const requestedStatus = typeof error === 'object' && error !== null && 'statusCode' in error ? error.statusCode : undefined;
       const status = typeof requestedStatus === 'number' && requestedStatus >= 400 && requestedStatus < 500 ? requestedStatus : 500;
       if (status === 500) request.log.error('Admin request failed.');
@@ -114,7 +117,10 @@ export function registerAdmin(app: FastifyInstance, options: AdminOptions): void
       return reply.code(303).header('Location', '/admin').send();
     });
 
-    if (options.repository) registerModeration(admin, options.repository);
+    if (options.repository) {
+      registerModeration(admin, options.repository);
+      registerDecks(admin, options.repository);
+    }
     if (options.routes) await options.routes(admin);
     admin.setNotFoundHandler((_request, reply) => reply.code(404).type('text/html').send(renderAdminError('Page not found.')));
   }, { prefix: '/admin' });
